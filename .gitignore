@@ -1,0 +1,46 @@
+# There wasn't a .gitignore in this project at all, which is why this
+# list starts broader than just the keystore — worth checking your actual
+# repo already has one before replacing it wholesale.
+
+# Signing — NEVER commit these. See KEYSTORE_AND_DISTRIBUTION.md.
+android/key.properties
+**/*.jks
+**/*.keystore
+
+# Firebase config — contains project-specific keys; keep out of git
+# unless you've deliberately decided this repo is private and that's fine.
+android/app/google-services.json
+ios/Runner/GoogleService-Info.plist
+lib/firebase_options.dart
+
+# Flutter / Dart
+.dart_tool/
+.packages
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+# Note: pubspec.lock is intentionally NOT ignored — for an app (not a
+# package/plugin) it should be committed so builds are reproducible.
+
+# Android
+android/.gradle/
+android/captures/
+android/local.properties
+android/**/GeneratedPluginRegistrant.java
+
+# iOS
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+ios/Pods/
+ios/.symlinks/
+**/xcuserdata/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# macOS
+.DS_Store

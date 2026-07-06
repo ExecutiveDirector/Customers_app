@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base href="$FLUTTER_BASE_HREF">
+
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="description" content="A new Flutter project.">
+
+  <!-- iOS meta tags & icons -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="nanochat">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="favicon.png"/>
+
+  <!-- Supabase SDK -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <!-- Content Security Policy - Updated for Flutter Web
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self' data: blob:;
+                 script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://www.gstatic.com https://api.flutlab.io;
+                 script-src-elem 'self' https://cdn.jsdelivr.net https://www.gstatic.com https://api.flutlab.io;
+                 style-src 'self' 'unsafe-inline';
+                 connect-src 'self' https://*.supabase.co wss://*.supabase.co https://www.gstatic.com https://api.flutlab.io;
+                 img-src 'self' data: https: blob:;
+                 font-src 'self' data:;
+                 worker-src 'self' blob:;
+                 frame-src 'self';">
+
+  <!-- Permissions Policy for Clipboard -->
+  <!-- <meta http-equiv="Permissions-Policy" content="clipboard-read=(self), clipboard-write=(self)"> --> -->
+
+  <title>nanochat</title>
+  <link rel="manifest" href="manifest.json">
+
+  <script>
+    // Initialize Supabase
+    const SUPABASE_URL = "https://xkvgrngwwopyxsphawxx.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhrdmdybmd3d29weXhzcGhhd3h4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ5ODQ2ODksImV4cCI6MjA3MDU2MDY4OX0.uNw7vJsIFXpoztoqK0RIqXZkut1ZA212DuSyyQA3QxY";
+
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // Example: check user session
+    supabase.auth.getSession().then(({ data }) => {
+      console.log("Current session:", data.session);
+    });
+  </script>
+</head>
+<body>
+  <script src="flutter_bootstrap.js" async></script>
+</body>
+</html>

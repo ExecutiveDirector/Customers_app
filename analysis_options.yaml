@@ -1,0 +1,58 @@
+# This file configures the analyzer, which statically analyzes Dart code to
+# check for errors, warnings, and lints.
+#
+# The issues identified by the analyzer are surfaced in the UI of Dart-enabled
+# IDEs[](https://dart.dev/tools#ides-and-editors). The analyzer can also be
+# invoked from the command line by running `flutter analyze`.
+
+# Include the recommended lints for Flutter apps, packages, and plugins
+include: package:flutter_lints/flutter.yaml
+analyzer:
+  # Enable stricter type checking for better code safety
+  strong-mode:
+    implicit-casts: false
+    implicit-dynamic: false
+
+  # Include additional directories for analysis (e.g., custom packages)
+  exclude:
+    - build/**
+    - .dart_tool/**
+    # Add exclusions for generated files or specific directories if needed
+    # - packages/file/src/generated/**
+
+  # Specify custom paths to include for analysis
+  custom-paths:
+    - packages/file/src/interface/
+
+  # Enable errors for unresolved imports or missing files
+  errors:
+    # Treat missing files as errors to catch issues with error_codes.dart
+    missing_file: error
+    # Ensure imports are resolved correctly
+    invalid_uri: error
+    # Warn about platform-specific code that may not work on web
+    non_web_safe_code: warning
+
+linter:
+  rules:
+    # Enforce consistent import paths to prevent issues with packages/file
+    always_use_package_imports: true
+    # Avoid accessing internal package files (e.g., src/)
+    avoid_relative_lib_imports: true
+    # Ensure code is web-compatible
+    avoid_dynamic_calls: true
+    # Prevent usage of file system APIs on web
+    avoid_web_libraries_in_flutter: true
+    # Encourage explicit types for better type safety
+    always_specify_types: true
+    # Avoid print statements in production code
+    avoid_print: true
+    # Prefer single quotes for consistency
+    prefer_single_quotes: true
+    # Ensure proper null safety
+    unnecessary_nullable_for_final_variable_declarations: true
+    # Catch unused imports that might cause issues
+    unused_import: error
+
+# Additional information about this file can be found at
+# https://dart.dev/guides/language/analysis-options

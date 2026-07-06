@@ -1,0 +1,87 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- 🔒 Internet and network permissions -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!-- 📍 Location permissions for delivery tracking -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- Optional for background tracking (if riders or live tracking used) -->
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+
+    <!-- 💾 Storage permissions for profile images, invoices, etc. -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="28" />
+    <!-- For Android 10+ scoped storage -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+
+    <!-- 🔔 Notifications for order status and delivery updates -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+     
+    <!-- 📷 Camera (for profile picture or delivery proof) -->
+    <uses-permission android:name="android.permission.CAMERA" />
+
+    <!-- 🌍 Geocoding / Maps usage (optional but useful for delivery) -->
+    <uses-permission android:name="com.google.android.providers.gsf.permission.READ_GSERVICES" />
+
+    <application
+        android:name="${applicationName}"
+        android:label="AquaGas"
+        android:icon="@mipmap/ic_launcher"
+        android:usesCleartextTraffic="true"
+        android:requestLegacyExternalStorage="true">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:theme="@style/LaunchTheme"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:hardwareAccelerated="true"
+            android:windowSoftInputMode="adjustResize">
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!-- ✅ Custom scheme deep link for password reset -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="aquagas"
+                    android:host="reset-password" />
+            </intent-filter>
+
+            <!-- ✅ Verified HTTPS deep link for password reset -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="https"
+                    android:host="aquagas.com"
+                    android:pathPrefix="/reset-password" />
+            </intent-filter>
+        </activity>
+
+        <!-- ✅ Flutter default entry point -->
+        <meta-data
+            android:name="flutterEmbedding"
+            android:value="2" />
+
+        <!-- ✅ Maps API Key (if you use Google Maps) -->
+        
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="AIzaSyBpCGfeMXyud_l-n0Y-D9sUqW38gY6FWQM" />
+       
+
+    </application>
+</manifest>
