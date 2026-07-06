@@ -45,7 +45,7 @@ jobs:
           storePassword=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
           keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}
-          storeFile=keystore/aquagas-customer-release.jks
+          storeFile=app/keystore/aquagas-customer-release.jks
           EOF
       # Keep this — it stops a broken build from ever reaching a customer's
       # phone. Same continue-on-error as the vendor app's workflow for now;
