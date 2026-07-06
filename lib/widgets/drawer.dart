@@ -70,8 +70,8 @@ class _AppDrawerState extends State<AppDrawer> {
       // Backend stores full profile data; navigate the nested structure.
       // getCurrentUser() returns the raw JSON stored at login time.
       // Structure may be { account:{...}, profile:{...} } or flat.
-      final Map<String, dynamic> flat = _flattenUser(user ?? {});
-
+      final Map<String, dynamic> flat =
+          _flattenUser(user ?? <String, dynamic>{});
       final String firstName = flat['first_name']?.toString() ?? '';
       final String lastName = flat['last_name']?.toString() ?? '';
       final String email = flat['email']?.toString() ?? '';
@@ -88,7 +88,8 @@ class _AppDrawerState extends State<AppDrawer> {
         // Backend returns a relative path (/uploads/avatars/xyz.jpg) —
         // resolve it the same way profile_screen.dart does, or
         // Image.network below just fails silently.
-        _avatarUrl = AuthService.resolveMediaUrl(flat['avatar_url']?.toString());
+        _avatarUrl =
+            AuthService.resolveMediaUrl(flat['avatar_url']?.toString());
         _profileLoaded = true;
       });
     } catch (_) {
@@ -112,7 +113,8 @@ class _AppDrawerState extends State<AppDrawer> {
 
       setState(() {
         _totalOrders = orders.length;
-        final List<Map<String, dynamic>> active = orders.where((Map<String, dynamic> o) {
+        final List<Map<String, dynamic>> active =
+            orders.where((Map<String, dynamic> o) {
           final String status =
               (o['order_status'] ?? o['status'] ?? '').toString().toLowerCase();
           return activeStatuses.contains(status);
@@ -301,8 +303,7 @@ class _AppDrawerState extends State<AppDrawer> {
                   title: 'Track Order',
                   badge: _activeOrders > 0 ? '$_activeOrders' : null,
                   onTap: () => _activeOrderId != null
-                      ? _navigate(Routes.trackOrder,
-                          arguments: _activeOrderId)
+                      ? _navigate(Routes.trackOrder, arguments: _activeOrderId)
                       : _navigate(Routes.orderHistory),
                 ),
                 const SizedBox(height: 4),

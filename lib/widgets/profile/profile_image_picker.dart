@@ -44,7 +44,7 @@ class ProfileImagePicker extends StatelessWidget {
   }
 
   void _showImageSourceDialog(BuildContext context) {
-    showModalBottomSheet(
+    showModalBottomSheet<void>(
       context: context,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),

@@ -15,9 +15,8 @@ class PremiumSettingsPage extends StatefulWidget {
   State<PremiumSettingsPage> createState() => _PremiumSettingsPageState();
 }
 
-class _PremiumSettingsPageState extends State<PremiumSettingsPage> 
+class _PremiumSettingsPageState extends State<PremiumSettingsPage>
     with SingleTickerProviderStateMixin {
-  
   late AnimationController _animController;
   bool _notificationsEnabled = true;
   final NotificationService _notificationService = NotificationService();
@@ -53,16 +52,18 @@ class _PremiumSettingsPageState extends State<PremiumSettingsPage>
       if (!status.isGranted && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text(
-                "Notifications are blocked in your phone's settings, so "
-                "you won't receive alerts even with this on."),
+            content:
+                Text("Notifications are blocked in your phone's settings, so "
+                    "you won't receive alerts even with this on."),
           ),
         );
       }
     }
 
     try {
-      await _notificationService.updatePreferences({'push_enabled': enabled});
+      await _notificationService.updatePreferences(<String, dynamic>{
+        'push_enabled': enabled,
+      });
     } catch (_) {
       // Preference still applies locally for this session; it'll sync
       // next time the toggle is touched or the preferences reload.
@@ -75,21 +76,21 @@ class _PremiumSettingsPageState extends State<PremiumSettingsPage>
     super.dispose();
   }
 
-  void _openThemeDialog() => showDialog(
-    context: context,
-    builder: (_) => const PremiumThemeDialog(),
-  );
+  void _openThemeDialog() => showDialog<void>(
+        context: context,
+        builder: (_) => const PremiumThemeDialog(),
+      );
 
-  void _openRateDialog() => showDialog(
-    context: context,
-    builder: (_) => const PremiumRateDialog(),
-  );
+  void _openRateDialog() => showDialog<void>(
+        context: context,
+        builder: (_) => const PremiumRateDialog(),
+      );
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final tp = Provider.of<ThemeProvider>(context);
-    
+
     return Scaffold(
       backgroundColor: theme.brightness == Brightness.light
           ? const Color(0xFFF8FAFB)
@@ -185,7 +186,7 @@ class _PremiumSettingsPageState extends State<PremiumSettingsPage>
                     ],
                   ),
                 ),
-                
+
                 const SizedBox(height: 16),
 
                 // General Section
@@ -265,9 +266,9 @@ class _PremiumSettingsPageState extends State<PremiumSettingsPage>
                         icon: Icons.mail_rounded,
                         title: 'Contact Support',
                         subtitle: 'We\'re here to help',
-                        onTap: () => Navigator.push(
+                        onTap: () => Navigator.push<void>(
                           context,
-                          MaterialPageRoute(
+                          MaterialPageRoute<void>(
                               builder: (_) => const HelpSupportScreen()),
                         ),
                         showChevron: true,
@@ -289,9 +290,9 @@ class _PremiumSettingsPageState extends State<PremiumSettingsPage>
                         icon: Icons.privacy_tip_rounded,
                         title: 'Privacy Policy',
                         subtitle: 'How we protect your data',
-                        onTap: () => Navigator.push(
+                        onTap: () => Navigator.push<void>(
                           context,
-                          MaterialPageRoute(
+                          MaterialPageRoute<void>(
                             builder: (_) => const _LegalPagePlaceholder(
                               title: 'Privacy Policy',
                             ),
@@ -303,9 +304,9 @@ class _PremiumSettingsPageState extends State<PremiumSettingsPage>
                         icon: Icons.description_rounded,
                         title: 'Terms & Conditions',
                         subtitle: 'Our terms of service',
-                        onTap: () => Navigator.push(
+                        onTap: () => Navigator.push<void>(
                           context,
-                          MaterialPageRoute(
+                          MaterialPageRoute<void>(
                             builder: (_) => const _LegalPagePlaceholder(
                               title: 'Terms & Conditions',
                             ),
@@ -400,11 +401,13 @@ class _PremiumSettingsPageState extends State<PremiumSettingsPage>
             ),
           ),
           ...children.map((child) => Column(
-            children: [
-              Divider(height: 1, color: theme.colorScheme.outlineVariant.withOpacity(0.3)),
-              child,
-            ],
-          )),
+                children: [
+                  Divider(
+                      height: 1,
+                      color: theme.colorScheme.outlineVariant.withOpacity(0.3)),
+                  child,
+                ],
+              )),
         ],
       ),
     );

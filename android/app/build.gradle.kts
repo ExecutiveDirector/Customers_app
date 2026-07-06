@@ -38,7 +38,7 @@ android {
         // to your real, final Application ID and update `namespace` above to
         // match. It must exactly match the package name registered in your
         // Firebase project's google-services.json.
-        applicationId = "com.example.aquagas"
+        applicationId = "com.example.Aquagas.Customer"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = 23
@@ -52,7 +52,7 @@ android {
             create("release") {
                 keyAlias = keystoreProperties["keyAlias"] as String
                 keyPassword = keystoreProperties["keyPassword"] as String
-                storeFile = file(keystoreProperties["storeFile"] as String)
+                storeFile = rootProject.file(keystoreProperties["storeFile"] as String)
                 storePassword = keystoreProperties["storePassword"] as String
             }
         }

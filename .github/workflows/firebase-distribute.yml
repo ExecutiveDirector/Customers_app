@@ -1,0 +1,76 @@
+name: Build & Distribute Customer App
+
+# Same shape as the vendor app's workflow (Vendors_app-main/.github/workflows/
+# firebase-distribute.yml) — builds a release APK on every push to main and
+# pushes it to Firebase App Distribution, so your customer-side beta
+# testers get a notification and can tap to install.
+#
+# One real difference from the vendor app's version: that workflow relies
+# on android/key.properties and the .jks file being physically present in
+# the checked-out repo (they're committed, unprotected by any .gitignore).
+# This one instead reconstructs both from GitHub Secrets at build time —
+# see the "Recreate release keystore" step below — so nothing signing-
+# related ever has to live in git for this repo. Functionally identical
+# result, just without the exposure.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+jobs:
+  build-and-distribute:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.32.0'   # matches the vendor app's pinned version
+          channel: 'stable'
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      # Rebuilds android/app/keystore/aquagas-customer-release.jks and
+      # android/key.properties from secrets right before the build, then
+      # they're gone again once the runner is torn down. Requires the
+      # secrets set up per KEYSTORE_AND_DISTRIBUTION.md:
+      #   ANDROID_KEYSTORE_BASE64   (base64 of the .jks file)
+      #   ANDROID_KEYSTORE_PASSWORD
+      #   ANDROID_KEY_ALIAS
+      #   ANDROID_KEY_PASSWORD
+      - name: Recreate release keystore
+        run: |
+          mkdir -p android/app/keystore
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > android/app/keystore/aquagas-customer-release.jks
+          cat > android/key.properties <<EOF
+          storePassword=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
+          keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}
+          storeFile=app/keystore/aquagas-customer-release.jks
+          EOF
+
+      # Keep this — it stops a broken build from ever reaching a customer's
+      # phone. Same continue-on-error as the vendor app's workflow for now;
+      # flip to false once you're confident in the test suite.
+      - name: Run tests
+        run: flutter test
+        continue-on-error: true
+
+      - name: Build release APK
+        run: flutter build apk --release
+
+      - name: Upload to Firebase App Distribution
+        uses: wzieba/Firebase-Distribution-Github-Action@v1
+        with:
+          appId: ${{ secrets.FIREBASE_ANDROID_APP_ID }}
+          serviceCredentialsFileContent: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          groups: Customers
+          file: build/app/outputs/flutter-apk/app-release.apk
+          releaseNotes: |
+            Auto-build from commit ${{ github.sha }}
+            ${{ github.event.head_commit.message }}

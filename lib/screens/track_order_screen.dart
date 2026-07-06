@@ -152,7 +152,9 @@ class _TrackOrderScreenState extends State<TrackOrderScreen> {
       (Map<String, dynamic> order) {
         if (mounted) setState(() => _rawOrder = order);
       },
-      onError: (_) {/* silent — we already have the first fetch */},
+      onError: (Object error) {
+        // Silent — we already have the first fetch.
+      },
     );
   }
 

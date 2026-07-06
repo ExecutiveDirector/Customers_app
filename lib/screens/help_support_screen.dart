@@ -121,8 +121,9 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
   Future<void> _openTicket(SupportTicket ticket) async {
     await Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => _TicketDetailScreen(ticketId: ticket.id, service: _service),
+      MaterialPageRoute<void>(
+        builder: (_) =>
+            _TicketDetailScreen(ticketId: ticket.id, service: _service),
       ),
     );
     _load();
@@ -140,19 +141,25 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
               decoration: const BoxDecoration(
                 color: Colors.white,
                 boxShadow: [
-                  BoxShadow(color: Color(0x14000000), blurRadius: 8, offset: Offset(0, 2)),
+                  BoxShadow(
+                      color: Color(0x14000000),
+                      blurRadius: 8,
+                      offset: Offset(0, 2)),
                 ],
               ),
               child: Row(
                 children: <Widget>[
                   IconButton(
-                    icon: const Icon(Icons.arrow_back_rounded, color: AppColors.slate800),
+                    icon: const Icon(Icons.arrow_back_rounded,
+                        color: AppColors.slate800),
                     onPressed: () => Navigator.of(context).pop(),
                   ),
                   const Text(
                     'Help & Support',
                     style: TextStyle(
-                        fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.slate800),
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.slate800),
                   ),
                 ],
               ),
@@ -219,24 +226,34 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
             children: <Widget>[
               const Expanded(
                 child: Text('My requests',
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.slate800)),
+                    style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.slate800)),
               ),
               TextButton.icon(
                 onPressed: _openNewTicket,
-                icon: const Icon(Icons.add_rounded, size: 18, color: AppColors.green600),
-                label: const Text('New', style: TextStyle(color: AppColors.green600, fontWeight: FontWeight.w600)),
+                icon: const Icon(Icons.add_rounded,
+                    size: 18, color: AppColors.green600),
+                label: const Text('New',
+                    style: TextStyle(
+                        color: AppColors.green600,
+                        fontWeight: FontWeight.w600)),
               ),
             ],
           ),
           if (_error != null)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 12),
-              child: Text(_error!, style: const TextStyle(color: AppColors.slate500)),
+              child: Text(_error!,
+                  style: const TextStyle(color: AppColors.slate500)),
             )
           else if (_tickets == null)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 20),
-              child: Center(child: CircularProgressIndicator(color: AppColors.green500, strokeWidth: 2)),
+              child: Center(
+                  child: CircularProgressIndicator(
+                      color: AppColors.green500, strokeWidth: 2)),
             )
           else if (_tickets!.isEmpty)
             const Padding(
@@ -289,7 +306,10 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
         const Padding(
           padding: EdgeInsets.only(bottom: 8, left: 4),
           child: Text('Frequently asked questions',
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.slate800)),
+              style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.slate800)),
         ),
         Container(
           decoration: BoxDecoration(
@@ -300,14 +320,23 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
           child: Column(
             children: faqs
                 .map((List<String> qa) => Theme(
-                      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                      data: Theme.of(context)
+                          .copyWith(dividerColor: Colors.transparent),
                       child: ExpansionTile(
                         title: Text(qa[0],
-                            style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: AppColors.slate800)),
-                        childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                            style: const TextStyle(
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.slate800)),
+                        childrenPadding:
+                            const EdgeInsets.fromLTRB(16, 0, 16, 16),
                         expandedCrossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[
-                          Text(qa[1], style: const TextStyle(color: AppColors.slate500, fontSize: 13, height: 1.4)),
+                          Text(qa[1],
+                              style: const TextStyle(
+                                  color: AppColors.slate500,
+                                  fontSize: 13,
+                                  height: 1.4)),
                         ],
                       ),
                     ))
@@ -349,11 +378,16 @@ class _ContactButton extends StatelessWidget {
             Container(
               width: 44,
               height: 44,
-              decoration: const BoxDecoration(color: AppColors.green50, shape: BoxShape.circle),
+              decoration: const BoxDecoration(
+                  color: AppColors.green50, shape: BoxShape.circle),
               child: Icon(icon, color: AppColors.green600),
             ),
             const SizedBox(height: 10),
-            Text(label, style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.slate800, fontSize: 13.5)),
+            Text(label,
+                style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.slate800,
+                    fontSize: 13.5)),
             const SizedBox(height: 2),
             Text(sublabel,
                 style: TextStyle(color: AppColors.slate500, fontSize: 11.5),
@@ -388,10 +422,15 @@ class _TicketRow extends StatelessWidget {
                   Text(ticket.subject,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontWeight: FontWeight.w600, color: AppColors.slate800, fontSize: 13.5)),
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.slate800,
+                          fontSize: 13.5)),
                   const SizedBox(height: 2),
-                  Text('${_categoryLabel(ticket.category)} · #${ticket.ticketNumber}',
-                      style: const TextStyle(color: AppColors.slate500, fontSize: 11.5)),
+                  Text(
+                      '${_categoryLabel(ticket.category)} · #${ticket.ticketNumber}',
+                      style: const TextStyle(
+                          color: AppColors.slate500, fontSize: 11.5)),
                 ],
               ),
             ),
@@ -402,7 +441,10 @@ class _TicketRow extends StatelessWidget {
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Text(_statusLabel(ticket.status),
-                  style: TextStyle(color: _statusColor(ticket.status), fontSize: 11, fontWeight: FontWeight.w700)),
+                  style: TextStyle(
+                      color: _statusColor(ticket.status),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700)),
             ),
           ],
         ),
@@ -464,7 +506,8 @@ class _NewTicketSheetState extends State<_NewTicketSheet> {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding:
+          EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: Container(
         decoration: const BoxDecoration(
           color: Colors.white,
@@ -480,19 +523,26 @@ class _NewTicketSheetState extends State<_NewTicketSheet> {
                 width: 40,
                 height: 4,
                 margin: const EdgeInsets.only(bottom: 16),
-                decoration: BoxDecoration(color: AppColors.slate100, borderRadius: BorderRadius.circular(2)),
+                decoration: BoxDecoration(
+                    color: AppColors.slate100,
+                    borderRadius: BorderRadius.circular(2)),
               ),
             ),
             const Text('New support request',
-                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: AppColors.slate800)),
+                style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.slate800)),
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
               value: _category,
               decoration: _fieldDecoration('Category'),
               items: _categories
-                  .map((String c) => DropdownMenuItem<String>(value: c, child: Text(_categoryLabel(c))))
+                  .map((String c) => DropdownMenuItem<String>(
+                      value: c, child: Text(_categoryLabel(c))))
                   .toList(),
-              onChanged: (String? v) => setState(() => _category = v ?? _category),
+              onChanged: (String? v) =>
+                  setState(() => _category = v ?? _category),
             ),
             const SizedBox(height: 12),
             TextField(
@@ -507,7 +557,9 @@ class _NewTicketSheetState extends State<_NewTicketSheet> {
             ),
             if (_error != null) ...<Widget>[
               const SizedBox(height: 8),
-              Text(_error!, style: const TextStyle(color: AppColors.red500, fontSize: 12.5)),
+              Text(_error!,
+                  style:
+                      const TextStyle(color: AppColors.red500, fontSize: 12.5)),
             ],
             const SizedBox(height: 16),
             SizedBox(
@@ -517,13 +569,18 @@ class _NewTicketSheetState extends State<_NewTicketSheet> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.green500,
                   padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
                 ),
                 child: _submitting
                     ? const SizedBox(
-                        width: 20, height: 20,
-                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                    : const Text('Submit', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                            color: Colors.white, strokeWidth: 2))
+                    : const Text('Submit',
+                        style: TextStyle(
+                            color: Colors.white, fontWeight: FontWeight.w700)),
               ),
             ),
           ],
@@ -536,7 +593,9 @@ class _NewTicketSheetState extends State<_NewTicketSheet> {
         labelText: label,
         filled: true,
         fillColor: AppColors.slate100,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+        border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none),
       );
 }
 
@@ -563,10 +622,12 @@ class _TicketDetailScreenState extends State<_TicketDetailScreen> {
 
   Future<void> _load() async {
     try {
-      final SupportTicket t = await widget.service.getTicketDetails(widget.ticketId);
+      final SupportTicket t =
+          await widget.service.getTicketDetails(widget.ticketId);
       if (mounted) setState(() => _ticket = t);
     } catch (e) {
-      if (mounted) setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
+      if (mounted)
+        setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
     }
   }
 
@@ -590,7 +651,8 @@ class _TicketDetailScreenState extends State<_TicketDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final bool closed = _ticket?.status == 'closed' || _ticket?.status == 'resolved';
+    final bool closed =
+        _ticket?.status == 'closed' || _ticket?.status == 'resolved';
 
     return Scaffold(
       backgroundColor: AppColors.slate100,
@@ -601,27 +663,42 @@ class _TicketDetailScreenState extends State<_TicketDetailScreen> {
               padding: const EdgeInsets.fromLTRB(12, 8, 16, 16),
               decoration: const BoxDecoration(
                 color: Colors.white,
-                boxShadow: [BoxShadow(color: Color(0x14000000), blurRadius: 8, offset: Offset(0, 2))],
+                boxShadow: [
+                  BoxShadow(
+                      color: Color(0x14000000),
+                      blurRadius: 8,
+                      offset: Offset(0, 2))
+                ],
               ),
               child: Row(
                 children: <Widget>[
                   IconButton(
-                    icon: const Icon(Icons.arrow_back_rounded, color: AppColors.slate800),
+                    icon: const Icon(Icons.arrow_back_rounded,
+                        color: AppColors.slate800),
                     onPressed: () => Navigator.of(context).pop(),
                   ),
                   Expanded(
                     child: Text(_ticket?.subject ?? 'Support request',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.slate800)),
+                        style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.slate800)),
                   ),
                 ],
               ),
             ),
             if (_error != null)
-              Expanded(child: Center(child: Text(_error!, style: const TextStyle(color: AppColors.slate500))))
+              Expanded(
+                  child: Center(
+                      child: Text(_error!,
+                          style: const TextStyle(color: AppColors.slate500))))
             else if (_ticket == null)
-              const Expanded(child: Center(child: CircularProgressIndicator(color: AppColors.green500)))
+              const Expanded(
+                  child: Center(
+                      child:
+                          CircularProgressIndicator(color: AppColors.green500)))
             else
               Expanded(
                 child: ListView(
@@ -629,18 +706,29 @@ class _TicketDetailScreenState extends State<_TicketDetailScreen> {
                   children: <Widget>[
                     Container(
                       padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14)),
-                      child: Text(_ticket!.description, style: const TextStyle(color: AppColors.slate800, height: 1.4)),
+                      decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(14)),
+                      child: Text(_ticket!.description,
+                          style: const TextStyle(
+                              color: AppColors.slate800, height: 1.4)),
                     ),
                     const SizedBox(height: 16),
                     ..._ticket!.messages.map((SupportMessage m) => Align(
-                          alignment: m.isFromCustomer ? Alignment.centerRight : Alignment.centerLeft,
+                          alignment: m.isFromCustomer
+                              ? Alignment.centerRight
+                              : Alignment.centerLeft,
                           child: Container(
                             margin: const EdgeInsets.only(bottom: 10),
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                            constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 10),
+                            constraints: BoxConstraints(
+                                maxWidth:
+                                    MediaQuery.of(context).size.width * 0.75),
                             decoration: BoxDecoration(
-                              color: m.isFromCustomer ? AppColors.green500 : Colors.white,
+                              color: m.isFromCustomer
+                                  ? AppColors.green500
+                                  : Colors.white,
                               borderRadius: BorderRadius.circular(14),
                             ),
                             child: Column(
@@ -648,9 +736,15 @@ class _TicketDetailScreenState extends State<_TicketDetailScreen> {
                               children: <Widget>[
                                 if (!m.isFromCustomer)
                                   Text(m.senderName,
-                                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.green600)),
+                                      style: const TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w700,
+                                          color: AppColors.green600)),
                                 Text(m.text,
-                                    style: TextStyle(color: m.isFromCustomer ? Colors.white : AppColors.slate800)),
+                                    style: TextStyle(
+                                        color: m.isFromCustomer
+                                            ? Colors.white
+                                            : AppColors.slate800)),
                               ],
                             ),
                           ),
@@ -663,7 +757,12 @@ class _TicketDetailScreenState extends State<_TicketDetailScreen> {
                 padding: const EdgeInsets.all(12),
                 decoration: const BoxDecoration(
                   color: Colors.white,
-                  boxShadow: [BoxShadow(color: Color(0x14000000), blurRadius: 8, offset: Offset(0, -2))],
+                  boxShadow: [
+                    BoxShadow(
+                        color: Color(0x14000000),
+                        blurRadius: 8,
+                        offset: Offset(0, -2))
+                  ],
                 ),
                 child: SafeArea(
                   top: false,
@@ -676,9 +775,11 @@ class _TicketDetailScreenState extends State<_TicketDetailScreen> {
                             hintText: 'Type a message',
                             filled: true,
                             fillColor: AppColors.slate100,
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 10),
                             border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none),
+                                borderRadius: BorderRadius.circular(24),
+                                borderSide: BorderSide.none),
                           ),
                         ),
                       ),
@@ -687,9 +788,12 @@ class _TicketDetailScreenState extends State<_TicketDetailScreen> {
                         onPressed: _sending ? null : _send,
                         icon: _sending
                             ? const SizedBox(
-                                width: 18, height: 18,
-                                child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.green500))
-                            : const Icon(Icons.send_rounded, color: AppColors.green500),
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                    strokeWidth: 2, color: AppColors.green500))
+                            : const Icon(Icons.send_rounded,
+                                color: AppColors.green500),
                       ),
                     ],
                   ),

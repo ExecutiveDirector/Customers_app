@@ -77,10 +77,10 @@ class _CategorySectionState extends State<CategorySection> {
   }
 
   void _openCategory(Category category) {
-    Navigator.push(
+    Navigator.push<void>(
       context,
-      MaterialPageRoute(
-        builder: (_) => CategoryProductsScreen(
+      MaterialPageRoute<void>(
+        builder: (BuildContext _) => CategoryProductsScreen(
           categoryId: category.id,
           categoryName: category.name,
         ),
@@ -90,10 +90,10 @@ class _CategorySectionState extends State<CategorySection> {
 
   void _openAllCategories() {
     if (_categories == null || _categories!.isEmpty) return;
-    Navigator.push(
+    Navigator.push<void>(
       context,
-      MaterialPageRoute(
-        builder: (_) => _AllCategoriesScreen(
+      MaterialPageRoute<void>(
+        builder: (BuildContext _) => _AllCategoriesScreen(
           categories: _categories!,
           onSelect: _openCategory,
         ),
@@ -145,7 +145,10 @@ class _CategorySectionState extends State<CategorySection> {
           padding: EdgeInsets.fromLTRB(16, 4, 16, 10),
           child: Text(
             'Shop by category',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.slate800),
+            style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: AppColors.slate800),
           ),
         ),
         SizedBox(
@@ -154,7 +157,8 @@ class _CategorySectionState extends State<CategorySection> {
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 16),
             itemCount: itemCount,
-            separatorBuilder: (_, __) => const SizedBox(width: 12),
+            separatorBuilder: (BuildContext _, int __) =>
+                const SizedBox(width: 12),
             itemBuilder: (BuildContext context, int i) => itemBuilder(i),
           ),
         ),
@@ -200,7 +204,9 @@ class _CategoryTile extends StatelessWidget {
                       child: Image.network(
                         category.iconUrl!,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Icon(icon, color: accent, size: 30),
+                        errorBuilder:
+                            (BuildContext _, Object __, StackTrace? ___) =>
+                                Icon(icon, color: accent, size: 30),
                       ),
                     )
                   : Icon(icon, color: accent, size: 30),
@@ -211,7 +217,10 @@ class _CategoryTile extends StatelessWidget {
               maxLines: 2,
               textAlign: TextAlign.center,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: AppColors.slate800),
+              style: const TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.slate800),
             ),
           ],
         ),
@@ -239,14 +248,19 @@ class _SeeAllTile extends StatelessWidget {
               decoration: BoxDecoration(
                 color: AppColors.slate100,
                 borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: AppColors.slate500.withOpacity(0.2)),
+                border: Border.all(
+                    color: AppColors.slate500.withValues(alpha: 0.2)),
               ),
-              child: const Icon(Icons.grid_view_rounded, color: AppColors.slate500, size: 26),
+              child: const Icon(Icons.grid_view_rounded,
+                  color: AppColors.slate500, size: 26),
             ),
             const SizedBox(height: 6),
             const Text(
               'See all',
-              style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: AppColors.slate500),
+              style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.slate500),
             ),
           ],
         ),
@@ -267,7 +281,9 @@ class _CategorySkeletonTile extends StatelessWidget {
           Container(
             width: 72,
             height: 72,
-            decoration: BoxDecoration(color: AppColors.slate100, borderRadius: BorderRadius.circular(18)),
+            decoration: BoxDecoration(
+                color: AppColors.slate100,
+                borderRadius: BorderRadius.circular(18)),
           ),
           const SizedBox(height: 6),
           Container(width: 50, height: 10, color: AppColors.slate100),
@@ -278,7 +294,8 @@ class _CategorySkeletonTile extends StatelessWidget {
 }
 
 class _AllCategoriesScreen extends StatelessWidget {
-  const _AllCategoriesScreen({required this.categories, required this.onSelect});
+  const _AllCategoriesScreen(
+      {required this.categories, required this.onSelect});
   final List<Category> categories;
   final ValueChanged<Category> onSelect;
 
@@ -293,17 +310,26 @@ class _AllCategoriesScreen extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(12, 8, 16, 16),
               decoration: const BoxDecoration(
                 color: Colors.white,
-                boxShadow: [BoxShadow(color: Color(0x14000000), blurRadius: 8, offset: Offset(0, 2))],
+                boxShadow: [
+                  BoxShadow(
+                      color: Color(0x14000000),
+                      blurRadius: 8,
+                      offset: Offset(0, 2))
+                ],
               ),
               child: Row(
                 children: <Widget>[
                   IconButton(
-                    icon: const Icon(Icons.arrow_back_rounded, color: AppColors.slate800),
+                    icon: const Icon(Icons.arrow_back_rounded,
+                        color: AppColors.slate800),
                     onPressed: () => Navigator.of(context).pop(),
                   ),
                   const Text(
                     'All categories',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.slate800),
+                    style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.slate800),
                   ),
                 ],
               ),

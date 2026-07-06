@@ -280,7 +280,7 @@ import 'package:aquagas/models/outlet_products.dart';
 import 'package:aquagas/models/category.dart';
 import 'package:aquagas/services/auth_service.dart';
 import 'package:aquagas/screens/models/filter_option.dart';
-import 'package:flutter/foundation.dart'; // for debugPrint
+import 'package:flutter/foundation.dart' show debugPrint;
 
 class ProductService {
   static const String _baseUrl =
@@ -670,8 +670,7 @@ class ProductService {
       ).timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
-        final List<dynamic> data =
-            jsonDecode(response.body) as List<dynamic>;
+        final List<dynamic> data = jsonDecode(response.body) as List<dynamic>;
         return data
             .map((dynamic e) => Product.fromJson(e as Map<String, dynamic>))
             .toList();
@@ -705,8 +704,7 @@ class ProductService {
       ).timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
-        final List<dynamic> data =
-            jsonDecode(response.body) as List<dynamic>;
+        final List<dynamic> data = jsonDecode(response.body) as List<dynamic>;
         return data
             .map((dynamic e) => Category.fromJson(e as Map<String, dynamic>))
             .toList();

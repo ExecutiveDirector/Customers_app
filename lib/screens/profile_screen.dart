@@ -518,8 +518,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 decoration: BoxDecoration(
                                   color: Colors.white,
                                   shape: BoxShape.circle,
-                                  border: Border.all(
-                                      color: _kGreen500, width: 2),
+                                  border:
+                                      Border.all(color: _kGreen500, width: 2),
                                 ),
                                 child: const Padding(
                                   padding: EdgeInsets.all(8.0),
@@ -722,7 +722,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
           onTap: () async {
             await Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+              MaterialPageRoute<void>(
+                  builder: (_) => const NotificationsScreen()),
             );
             final int count = await _notificationService.getUnreadCount();
             if (mounted) setState(() => _unreadCount = count);
@@ -809,8 +810,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.pop(context),
-                    child: const Text('OK',
-                        style: TextStyle(color: _kGreen700)),
+                    child:
+                        const Text('OK', style: TextStyle(color: _kGreen700)),
                   ),
                 ],
               ),
