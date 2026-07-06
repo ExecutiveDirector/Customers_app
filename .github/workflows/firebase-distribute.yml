@@ -1,5 +1,4 @@
 name: Build & Distribute Customer App
-
 # Same shape as the vendor app's workflow (Vendors_app-main/.github/workflows/
 # firebase-distribute.yml) — builds a release APK on every push to main and
 # pushes it to Firebase App Distribution, so your customer-side beta
@@ -16,25 +15,20 @@ on:
   push:
     branches: [main]
   workflow_dispatch: {}
-
 jobs:
   build-and-distribute:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
-
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.32.0'   # matches the vendor app's pinned version
           channel: 'stable'
           cache: true
-
       - name: Install dependencies
         run: flutter pub get
-
       # Rebuilds android/app/keystore/aquagas-customer-release.jks and
       # android/key.properties from secrets right before the build, then
       # they're gone again once the runner is torn down. Requires the
@@ -51,19 +45,16 @@ jobs:
           storePassword=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
           keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}
-          storeFile=app/keystore/aquagas-customer-release.jks
+          storeFile=keystore/aquagas-customer-release.jks
           EOF
-
       # Keep this — it stops a broken build from ever reaching a customer's
       # phone. Same continue-on-error as the vendor app's workflow for now;
       # flip to false once you're confident in the test suite.
       - name: Run tests
         run: flutter test
         continue-on-error: true
-
       - name: Build release APK
         run: flutter build apk --release
-
       - name: Upload to Firebase App Distribution
         uses: wzieba/Firebase-Distribution-Github-Action@v1
         with:
