@@ -209,13 +209,6 @@ The provided code for the AquaGas Flutter application (covering `main.dart`, `ho
   - Uses `TextOverflow.ellipsis` for product titles to prevent overflow.
   - Small font sizes (e.g., 8–10 for product cards) may need review for accessibility.
 
-### Notes
-- **No Brands Section**: As requested, `HomePage` does not include a brands section, focusing on vendor-grouped products.
-- **Time Zone**: All features respect the current time (05:25 PM EAT, August 14, 2025).
-- **Cart Dependency**: Assumes `cart.dart` defines a `Cart` class with `addItem(Map<String, dynamic>)`. If this is incorrect, please provide `cart.dart`.
-- **Default Coordinates**: Uses Nairobi (`-1.286389, 36.817223`) in `main.dart` and (0.0, 0.0) in `CompleteProfileScreen`. Consider standardizing to Nairobi for consistency.
-- **Missing Implementations**: Screens like `SignInScreen`, `SignUpScreen`, `CartPage`, etc., are referenced but not provided. Ensure they exist and align with the routing and authentication logic.
-- **Supabase Schema**: Uses `latitude` and `longitude` in `vendors` (not `location jsonb`), as per the latest `HomePage` update. Verify the schema with `select * from vendors limit 1;` in Supabase’s SQL Editor.
 
 ### Testing Recommendations
 1. **Supabase Schema**:
