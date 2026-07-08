@@ -491,6 +491,7 @@ class Cart extends ChangeNotifier {
           totalPrice: totalAmountWithTax,
           quantity: totalQuantity,
           deliveryLocation: deliveryLocation,
+          outletId: outletId.toString(),
         );
 
         clear();
@@ -556,6 +557,7 @@ class Cart extends ChangeNotifier {
       totalPrice: totalWithTax,
       quantity: totalQuantity,
       deliveryLocation: deliveryLocation,
+      outletId: outletId.toString(),
     );
 
     debugPrint('⚠️ Guest order created (cart not cleared)');

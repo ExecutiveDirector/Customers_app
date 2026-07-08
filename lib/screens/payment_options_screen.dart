@@ -166,47 +166,61 @@ class _PaymentOptionsScreenState extends State<PaymentOptionsScreen> {
   }
 
   Future<void> _fetchVendorLocation() async {
+    // FIX: pickup location must come from vendor_outlets (via
+    // GET /outlets/:outletId), not the vendors table — vendors has no
+    // latitude/longitude columns at all, so looking it up by vendor name
+    // could never resolve a location no matter how the response was parsed.
+    // widget.order.outletId is the actual outlet this order was placed
+    // with (see AppOrder / cart.dart _createAuthenticatedOrder).
+    final String? outletId = widget.order.outletId;
+    if (outletId == null || outletId.isEmpty) {
+      setState(() => _locationError =
+          'Could not determine which outlet this order belongs to. '
+              'Please choose Home Delivery or contact support.');
+      return;
+    }
+
     try {
       final http.Response res = await http.get(
-        Uri.parse(
-            '$_baseUrl/vendors?name=${Uri.encodeComponent(widget.order.vendorName)}'),
+        Uri.parse('$_baseUrl/outlets/$outletId'),
         headers: await _headers(),
       );
       if (res.statusCode == 200) {
-        // NOTE: GET /api/v1/vendors returns a bare JSON array
-        // (vendorController.getVendors -> res.json(vendors)), not
-        // { vendors: [...] }. Previously this always read
-        // json.decode(res.body)['vendors'], which throws on a List and
-        // silently fell into the catch block below on every call — pickup
-        // vendor location lookup never actually worked. Handle both shapes
-        // defensively in case the backend response is wrapped later.
-        final dynamic decoded = json.decode(res.body);
-        final List<dynamic> raw = decoded is List
-            ? decoded
-            : (decoded is Map && decoded['vendors'] is List
-                ? decoded['vendors'] as List<dynamic>
-                : <dynamic>[]);
-        if (raw.isNotEmpty) {
-          final Map<String, dynamic> vendor =
-              Map<String, dynamic>.from(raw.first as Map<dynamic, dynamic>);
-          // Real prices/fees vendors set for themselves also depend on
-          // vendor_type (gas vendor pickup is free, general vendor pickup
-          // carries a flat service fee) — capture it here for the pricing
-          // preview below.
-          _vendorType = (vendor['vendor_type'] as String?) ?? 'gas';
-          final dynamic loc = vendor['location'];
-          if (loc != null) {
-            final Map<String, dynamic> locMap =
-                Map<String, dynamic>.from(loc as Map<dynamic, dynamic>);
-            final double? lat = (locMap['latitude'] as num?)?.toDouble();
-            final double? lng = (locMap['longitude'] as num?)?.toDouble();
-            if (lat != null && lng != null) {
-              _location = LatLng(lat, lng);
-              _address = vendor['address'] as String?;
-              _addressCtrl.text = _address ?? '';
-              _updatePickupFee();
-              return;
-            }
+        // Shape: { outlet: { outlet_id, vendor_type, location: {lat, lng},
+        // address: {line_1, line_2, city, county, postal_code}, ... } }
+        // (outletController.getOutletById)
+        final Map<String, dynamic> body =
+            json.decode(res.body) as Map<String, dynamic>;
+        final Map<String, dynamic>? outlet =
+            body['outlet'] as Map<String, dynamic>?;
+
+        if (outlet != null) {
+          // vendor_type drives the pickup-fee preview below: gas vendor
+          // pickup is free, general vendor pickup carries a flat fee.
+          _vendorType = (outlet['vendor_type'] as String?) ?? 'gas';
+
+          final Map<String, dynamic>? loc =
+              outlet['location'] as Map<String, dynamic>?;
+          final double? lat = (loc?['lat'] as num?)?.toDouble();
+          final double? lng = (loc?['lng'] as num?)?.toDouble();
+
+          if (lat != null && lng != null) {
+            final Map<String, dynamic>? addr =
+                outlet['address'] as Map<String, dynamic>?;
+            final String? formattedAddress = addr != null
+                ? <String?>[
+                    addr['line_1'] as String?,
+                    addr['line_2'] as String?,
+                    addr['city'] as String?,
+                    addr['county'] as String?,
+                  ].where((String? part) => part != null && part.isNotEmpty).join(', ')
+                : null;
+
+            _location = LatLng(lat, lng);
+            _address = formattedAddress;
+            _addressCtrl.text = _address ?? '';
+            _updatePickupFee();
+            return;
           }
         }
         setState(() =>

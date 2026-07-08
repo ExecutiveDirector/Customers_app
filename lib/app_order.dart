@@ -59,6 +59,11 @@ class AppOrder extends Equatable {
   final double totalPrice;
   final int quantity;
   final LatLng? deliveryLocation;
+  // The outlet this order was placed with. Needed to look up pickup
+  // location correctly: vendor_outlets has latitude/longitude, the
+  // vendors table does not — looking up "the vendor" by name for pickup
+  // location can never work (see payment_options_screen.dart).
+  final String? outletId;
 
   const AppOrder({
     required this.id,
@@ -70,6 +75,7 @@ class AppOrder extends Equatable {
     required this.totalPrice,
     required this.quantity,
     this.deliveryLocation,
+    this.outletId,
   });
 
   /// ✅ Added `copyWith()` for easier updates and navigation arguments
@@ -83,6 +89,7 @@ class AppOrder extends Equatable {
     double? totalPrice,
     int? quantity,
     LatLng? deliveryLocation,
+    String? outletId,
   }) {
     return AppOrder(
       id: id ?? this.id,
@@ -94,6 +101,7 @@ class AppOrder extends Equatable {
       totalPrice: totalPrice ?? this.totalPrice,
       quantity: quantity ?? this.quantity,
       deliveryLocation: deliveryLocation ?? this.deliveryLocation,
+      outletId: outletId ?? this.outletId,
     );
   }
 
@@ -122,6 +130,7 @@ class AppOrder extends Equatable {
               (deliveryJson['lng'] as num).toDouble(),
             )
           : null,
+      outletId: json['outlet_id']?.toString(),
     );
   }
 
@@ -142,6 +151,7 @@ class AppOrder extends Equatable {
                 'lng': deliveryLocation!.longitude,
               }
             : null,
+        'outlet_id': outletId,
       };
 
   @override
@@ -155,5 +165,6 @@ class AppOrder extends Equatable {
         totalPrice,
         quantity,
         deliveryLocation,
+        outletId,
       ];
 }
