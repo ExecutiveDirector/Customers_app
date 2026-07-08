@@ -45,6 +45,22 @@ class _PaymentOptionsScreenState extends State<PaymentOptionsScreen> {
   String _deliveryType = 'home';
   double _deliveryFee = 150.0;
 
+  // Live pricing constants from the backend (utils/pricing.js /
+  // GET /api/v1/config/pricing). Previously this screen hardcoded
+  // `_deliveryFee = 150.0` and `0.0` for pickup directly, with no
+  // free-delivery-threshold check at all (backend waives the delivery fee
+  // above KES 7000) and no awareness that pickup from a "general"
+  // (non-gas) vendor carries a flat pickup fee rather than being free.
+  // Fallback values here match the backend's current defaults but the
+  // live fetch is authoritative — see _fetchPricingConfig / _updatePickupFee.
+  Map<String, dynamic> _pricingConfig = <String, dynamic>{
+    'tax_rate': 0.06,
+    'delivery_fee': 150,
+    'free_delivery_threshold': 7000,
+    'pickup_fee_general': 70,
+  };
+  String _vendorType = 'gas'; // 'gas' | 'general' — from the order's vendor
+
   // ─── Delivery schedule (home delivery only) ───────────────────────────────
   String _deliverySchedule = 'asap'; // 'asap' | 'scheduled'
   DateTime? _scheduledDate;
@@ -66,6 +82,7 @@ class _PaymentOptionsScreenState extends State<PaymentOptionsScreen> {
   void initState() {
     super.initState();
     _checkAuth();
+    _fetchPricingConfig();
     _initLocation();
   }
 
@@ -89,15 +106,63 @@ class _PaymentOptionsScreenState extends State<PaymentOptionsScreen> {
     });
 
     if (_deliveryType == 'pickup') {
-      _deliveryFee = 0.0;
       await _fetchVendorLocation();
     } else {
-      _deliveryFee = 150.0;
+      _vendorType = 'gas'; // home delivery ignores vendor_type
       await _fetchCustomerLocation();
     }
+    _updatePickupFee();
 
     if (_location != null) await _resolveAddress();
     setState(() => _isLoading = false);
+  }
+
+  // ─── Pricing config ───────────────────────────────────────────────────────
+  Future<void> _fetchPricingConfig() async {
+    try {
+      final http.Response res = await http.get(
+        Uri.parse('$_baseUrl/config/pricing'),
+        headers: await _headers(),
+      );
+      if (res.statusCode == 200) {
+        final Map<String, dynamic> data =
+            json.decode(res.body) as Map<String, dynamic>;
+        setState(() => _pricingConfig = data);
+        _updatePickupFee();
+      }
+      // On failure, silently keep the fallback values already in
+      // _pricingConfig — never block checkout on this call.
+    } catch (_) {
+      // Fallback values already set; nothing further to do.
+    }
+  }
+
+  /// Mirrors the backend's calculateOrderPricing() (utils/pricing.js)
+  /// exactly: gas-vendor pickup is free, general-vendor pickup carries a
+  /// flat service fee, and home delivery is free above the free-delivery
+  /// threshold. The backend recomputes this independently and is always
+  /// authoritative — this only drives the on-screen preview.
+  void _updatePickupFee() {
+    final double deliveryFeeBase =
+        (_pricingConfig['delivery_fee'] as num?)?.toDouble() ?? 150.0;
+    final double freeThreshold =
+        (_pricingConfig['free_delivery_threshold'] as num?)?.toDouble() ??
+            7000.0;
+    final double pickupFeeGeneral =
+        (_pricingConfig['pickup_fee_general'] as num?)?.toDouble() ?? 70.0;
+
+    double fee;
+    if (_deliveryType == 'pickup') {
+      fee = _vendorType == 'general' ? pickupFeeGeneral : 0.0;
+    } else {
+      fee = widget.order.totalPrice >= freeThreshold ? 0.0 : deliveryFeeBase;
+    }
+
+    if (mounted) {
+      setState(() => _deliveryFee = fee);
+    } else {
+      _deliveryFee = fee;
+    }
   }
 
   Future<void> _fetchVendorLocation() async {
@@ -108,11 +173,27 @@ class _PaymentOptionsScreenState extends State<PaymentOptionsScreen> {
         headers: await _headers(),
       );
       if (res.statusCode == 200) {
-        final List<dynamic> raw =
-            (json.decode(res.body)['vendors'] as List<dynamic>?) ?? <dynamic>[];
+        // NOTE: GET /api/v1/vendors returns a bare JSON array
+        // (vendorController.getVendors -> res.json(vendors)), not
+        // { vendors: [...] }. Previously this always read
+        // json.decode(res.body)['vendors'], which throws on a List and
+        // silently fell into the catch block below on every call — pickup
+        // vendor location lookup never actually worked. Handle both shapes
+        // defensively in case the backend response is wrapped later.
+        final dynamic decoded = json.decode(res.body);
+        final List<dynamic> raw = decoded is List
+            ? decoded
+            : (decoded is Map && decoded['vendors'] is List
+                ? decoded['vendors'] as List<dynamic>
+                : <dynamic>[]);
         if (raw.isNotEmpty) {
           final Map<String, dynamic> vendor =
               Map<String, dynamic>.from(raw.first as Map<dynamic, dynamic>);
+          // Real prices/fees vendors set for themselves also depend on
+          // vendor_type (gas vendor pickup is free, general vendor pickup
+          // carries a flat service fee) — capture it here for the pricing
+          // preview below.
+          _vendorType = (vendor['vendor_type'] as String?) ?? 'gas';
           final dynamic loc = vendor['location'];
           if (loc != null) {
             final Map<String, dynamic> locMap =
@@ -123,6 +204,7 @@ class _PaymentOptionsScreenState extends State<PaymentOptionsScreen> {
               _location = LatLng(lat, lng);
               _address = vendor['address'] as String?;
               _addressCtrl.text = _address ?? '';
+              _updatePickupFee();
               return;
             }
           }
@@ -610,27 +692,37 @@ class _PaymentOptionsScreenState extends State<PaymentOptionsScreen> {
       );
 
   // ─── Delivery toggle ──────────────────────────────────────────────────────
-  Widget _deliveryToggle() => Row(
-        children: <Widget>[
-          Expanded(
-            child: _deliveryChip(
-              label: 'Pickup',
-              subtitle: 'Free',
-              icon: Icons.store_outlined,
-              type: 'pickup',
-            ),
+  Widget _deliveryToggle() {
+    final double deliveryFeeBase =
+        (_pricingConfig['delivery_fee'] as num?)?.toDouble() ?? 150.0;
+    final double pickupFeeGeneral =
+        (_pricingConfig['pickup_fee_general'] as num?)?.toDouble() ?? 70.0;
+    final String pickupSubtitle = _vendorType == 'general'
+        ? 'KSh ${pickupFeeGeneral.toStringAsFixed(0)}'
+        : 'Free';
+
+    return Row(
+      children: <Widget>[
+        Expanded(
+          child: _deliveryChip(
+            label: 'Pickup',
+            subtitle: pickupSubtitle,
+            icon: Icons.store_outlined,
+            type: 'pickup',
           ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: _deliveryChip(
-              label: 'Home Delivery',
-              subtitle: 'KSh 150',
-              icon: Icons.delivery_dining_outlined,
-              type: 'home',
-            ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _deliveryChip(
+            label: 'Home Delivery',
+            subtitle: 'KSh ${deliveryFeeBase.toStringAsFixed(0)}',
+            icon: Icons.delivery_dining_outlined,
+            type: 'home',
           ),
-        ],
-      );
+        ),
+      ],
+    );
+  }
 
   Widget _deliveryChip({
     required String label,
