@@ -1,6 +1,8 @@
 // lib/services/profile_service.dart
 import 'dart:io';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
+import 'package:mime/mime.dart';
 import 'dart:convert';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter/foundation.dart';
@@ -60,8 +62,35 @@ class ProfileService {
       );
 
       request.headers['Authorization'] = 'Bearer $token';
+
+      // Explicitly resolve the MIME type instead of letting the http
+      // package guess from the file path. Some camera/gallery temp files
+      // (especially on Android/iOS) don't have a clean .jpg/.png/.webp
+      // extension, which caused the http package to fall back to
+      // 'application/octet-stream' and made the backend reject valid
+      // images with "invalid file type".
+      String? mimeType = lookupMimeType(imageFile.path);
+      const List<String> allowed = <String>[
+        'image/jpeg',
+        'image/jpg',
+        'image/png',
+        'image/webp',
+      ];
+      if (mimeType == null || !allowed.contains(mimeType)) {
+        // Fall back to sniffing the first bytes if extension-based lookup
+        // failed or returned something unexpected.
+        final List<int> headerBytes =
+            await imageFile.openRead(0, 12).first;
+        mimeType = lookupMimeType(imageFile.path, headerBytes: headerBytes) ??
+            'image/jpeg';
+      }
+
       request.files.add(
-        await http.MultipartFile.fromPath('image', imageFile.path),
+        await http.MultipartFile.fromPath(
+          'image',
+          imageFile.path,
+          contentType: MediaType.parse(mimeType),
+        ),
       );
 
       final http.StreamedResponse streamedResponse = await request.send();

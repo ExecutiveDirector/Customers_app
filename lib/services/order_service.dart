@@ -723,6 +723,35 @@ class OrderService {
     }
   }
 
+  /// Fetch the current lat/lng of the rider assigned to [orderId], for the
+  /// live tracking map. Returns null if no rider is assigned yet or no
+  /// location has been reported yet — callers should just skip drawing the
+  /// rider marker in that case rather than treat it as an error.
+  Future<Map<String, dynamic>?> getOrderRiderLocation(String orderId) async {
+    try {
+      final String? token = await _authService.getToken();
+      if (token == null) return null;
+
+      final http.Response response = await http.get(
+        Uri.parse('$_baseUrl/orders/$orderId/rider-location'),
+        headers: <String, String>{
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode != 200) return null;
+
+      final Map<String, dynamic> data =
+          jsonDecode(response.body) as Map<String, dynamic>;
+      return data['data'] as Map<String, dynamic>?;
+    } catch (e) {
+      debugPrint('Error fetching rider location: $e');
+      return null;
+    }
+  }
+
   /// Get user's order history
   Future<List<Map<String, dynamic>>> getUserOrders() async {
     try {

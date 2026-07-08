@@ -142,12 +142,15 @@ class Product extends Equatable {
       price: (json['price'] as num?)?.toDouble() ??
           (json['base_price'] as num?)?.toDouble() ??
           0.0,
-      image: json['image'] as String? ?? '',
+      image: json['image'] as String? ?? json['image_url'] as String? ?? '',
       vendorName: json['vendor_name'] as String? ?? '',
       rating: (json['rating'] as num?)?.toDouble() ?? 0.0,
-      availability: json['availability'] as String? ?? 'Available',
+      availability: json['availability'] as String? ??
+          ((json['is_available'] == false) ? 'Out of Stock' : 'Available'),
       isActive: json['isActive'] as bool? ?? (json['is_active'] == 1) ?? true,
-      stock: json['stock'] as int? ?? 0,
+      stock: (json['stock'] as num?)?.toInt() ??
+          (json['stock_quantity'] as num?)?.toInt() ??
+          0,
       sales: json['sales'] as int? ?? 0,
       vendorLatitude: (json['vendor_latitude'] as num?)?.toDouble() ?? 0.0,
       vendorLongitude: (json['vendor_longitude'] as num?)?.toDouble() ?? 0.0,

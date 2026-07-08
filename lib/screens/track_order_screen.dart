@@ -67,6 +67,11 @@ class _TrackOrderScreenState extends State<TrackOrderScreen> {
   // Polling stream
   StreamSubscription<Map<String, dynamic>>? _pollSub;
 
+  // Rider's live location, polled separately (see _startRiderLocationPolling)
+  // since it changes much more often than the order status/details.
+  LatLng? _riderLocation;
+  Timer? _riderLocationTimer;
+
   // Default centre: Nairobi CBD
   static const LatLng _kNairobi = LatLng(-1.2921, 36.8219);
 
@@ -81,6 +86,7 @@ class _TrackOrderScreenState extends State<TrackOrderScreen> {
   @override
   void dispose() {
     _pollSub?.cancel();
+    _riderLocationTimer?.cancel();
     _mapController?.dispose();
     super.dispose();
   }
@@ -102,6 +108,7 @@ class _TrackOrderScreenState extends State<TrackOrderScreen> {
 
     await _fetchOrder();
     _startPolling();
+    _startRiderLocationPolling();
   }
 
   Future<void> _ensureLocationPermission() async {
@@ -158,6 +165,40 @@ class _TrackOrderScreenState extends State<TrackOrderScreen> {
     );
   }
 
+  void _startRiderLocationPolling() {
+    _riderLocationTimer =
+        Timer.periodic(const Duration(seconds: 8), (_) => _fetchRiderLocation());
+    // Fetch once immediately rather than waiting for the first tick.
+    _fetchRiderLocation();
+  }
+
+  Future<void> _fetchRiderLocation() async {
+    if (!mounted) return;
+
+    // No point polling once the order is delivered/cancelled or before a
+    // rider has even been dispatched.
+    final String status =
+        (_rawOrder?['order_status'] ?? _rawOrder?['status'] ?? '')
+            .toString()
+            .toLowerCase();
+    const List<String> activeStatuses = <String>[
+      'dispatched',
+      'out_for_delivery',
+      'in_transit',
+    ];
+    if (!activeStatuses.contains(status)) return;
+
+    final Map<String, dynamic>? location =
+        await _orderService.getOrderRiderLocation(widget.orderId);
+    if (!mounted || location == null) return;
+
+    final double? lat = _parseDouble(location['latitude']);
+    final double? lng = _parseDouble(location['longitude']);
+    if (lat != null && lng != null) {
+      setState(() => _riderLocation = LatLng(lat, lng));
+    }
+  }
+
   void _animateToDelivery(Map<String, dynamic> order) {
     // Backend normalizeOrder now sends delivery_lat / delivery_lng.
     // Fall back to delivery_latitude / delivery_longitude for raw shapes.
@@ -202,6 +243,18 @@ class _TrackOrderScreenState extends State<TrackOrderScreen> {
         infoWindow: InfoWindow(
           title: _rawOrder!['delivery_address']?.toString() ?? 'Delivery point',
         ),
+      ));
+    }
+
+    if (_riderLocation != null) {
+      m.add(Marker(
+        markerId: const MarkerId('rider'),
+        position: _riderLocation!,
+        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange),
+        infoWindow: InfoWindow(
+          title: _rawOrder?['rider']?['name']?.toString() ?? 'Your rider',
+        ),
+        zIndex: 1,
       ));
     }
     return m;

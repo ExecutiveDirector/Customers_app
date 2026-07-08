@@ -50,6 +50,8 @@ dependencies:
   webview_flutter: ^4.4.2
   webview_flutter_web: ^0.2.2+1
   http: ^1.1.0
+  http_parser: ^4.0.2
+  mime: ^1.0.4
   flutter_lints: ^4.0.0
   bdd_widget_test: ^1.2.1
   build_runner: ^2.4.13
@@ -70,4 +72,3 @@ flutter:
     - assets/gas_cylinder_6kg.jpeg
     - assets/promo_kenya_momo_discount.jpg
     - assets/google_logo.png
-

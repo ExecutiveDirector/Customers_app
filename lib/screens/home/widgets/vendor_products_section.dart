@@ -237,7 +237,19 @@ class ProductCard extends StatelessWidget {
         product.availability.toLowerCase() != 'out of stock' &&
             product.stock > 0;
 
-    return Container(
+    return GestureDetector(
+      onTap: () {
+        Navigator.push<void>(
+          context,
+          MaterialPageRoute<void>(
+            builder: (BuildContext context) => ProductDetailScreen(
+              product: product,
+              onAddToCart: onAdd,
+            ),
+          ),
+        );
+      },
+      child: Container(
       width: 160,
       margin: const EdgeInsets.only(right: 12),
       decoration: BoxDecoration(
@@ -373,6 +385,7 @@ class ProductCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
       ),
     );
   }
