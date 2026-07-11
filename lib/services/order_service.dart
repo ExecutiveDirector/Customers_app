@@ -3,7 +3,8 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
 import 'package:aquagas/services/auth_service.dart';
-import 'dart:async' show Future, TimeoutException, unawaited;
+import 'package:aquagas/services/error_reporting_service.dart';
+import 'dart:async' show Future, TimeoutException;
 
 /// Service for managing orders with backend API
 /// Supports both authenticated and guest users
@@ -14,52 +15,13 @@ class OrderService {
   // =========================================================================
   // Helper: Error logging
   // =========================================================================
-  /// Logs an error locally and (best-effort, fire-and-forget) reports it to
-  /// the backend's client-error endpoint so it shows up in system_events
-  /// alongside server-side events, instead of only living in the device's
-  /// debug console.
-  ///
-  /// This intentionally never throws: a failure to log must never break the
-  /// calling code path.
+  /// Logs an error and (best-effort, fire-and-forget) reports it to the
+  /// backend's client-error endpoint. Delegates to the shared
+  /// ErrorReportingService (lib/services/error_reporting_service.dart) —
+  /// this used to have its own private copy of that same POST call, which
+  /// is now also used by main.dart's global error handlers.
   void logError(String context, dynamic error, {String? orderId}) {
-    debugPrint('[$context] Error: $error');
-
-    // Fire-and-forget — do not await, do not let this affect the caller.
-    unawaited(_reportErrorToBackend(
-      context: context,
-      error: error,
-      orderId: orderId,
-    ));
-  }
-
-  Future<void> _reportErrorToBackend({
-    required String context,
-    required dynamic error,
-    String? orderId,
-  }) async {
-    try {
-      final String? token = await _authService.getToken();
-
-      await http
-          .post(
-            Uri.parse('$_baseUrl/logs/client-error'),
-            headers: <String, String>{
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-              if (token != null) 'Authorization': 'Bearer $token',
-            },
-            body: jsonEncode(<String, dynamic>{
-              'context': context,
-              'message': error.toString(),
-              'severity': 'error',
-              'platform': 'flutter',
-              if (orderId != null) 'orderId': orderId,
-            }),
-          )
-          .timeout(const Duration(seconds: 5));
-    } catch (_) {
-      // Swallow silently — logging the failure of logging would recurse.
-    }
+    ErrorReportingService.logError(context, error as Object, orderId: orderId);
   }
 
   // =========================================================================

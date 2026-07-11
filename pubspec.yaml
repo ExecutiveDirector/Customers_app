@@ -58,6 +58,41 @@ dependencies:
   equatable: ^2.0.5
   firebase_messaging: ^15.1.3
   flutter_local_notifications: ^18.0.1
+  firebase_crashlytics: ^4.1.3
+
+dev_dependencies:
+  flutter_launcher_icons: ^0.14.1
+  flutter_native_splash: ^2.4.2
+
+# ─── App icon (flutter_launcher_icons) ─────────────────────────────────────
+# Source image should ideally be 1024x1024 PNG. assets/assets/images/logo.png
+# is 348x387 (not square) — usable as a placeholder, but swap in a proper
+# square 1024x1024 logo before submitting to the stores if you have one.
+# Run: flutter pub run flutter_launcher_icons
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/assets/images/logo.png"
+  min_sdk_android: 21
+  adaptive_icon_background: "#10B981"
+  adaptive_icon_foreground: "assets/assets/images/logo.png"
+  remove_alpha_ios: true
+
+# ─── Splash screen (flutter_native_splash) ─────────────────────────────────
+# Run: flutter pub run flutter_native_splash:create
+flutter_native_splash:
+  color: "#FFFFFF"
+  image: "assets/assets/images/logo.png"
+  color_dark: "#0F172A"
+  image_dark: "assets/assets/images/logo.png"
+  android_12:
+    color: "#FFFFFF"
+    image: "assets/assets/images/logo.png"
+    color_dark: "#0F172A"
+    image_dark: "assets/assets/images/logo.png"
+  android: true
+  ios: true
+  web: false
 
 
 
