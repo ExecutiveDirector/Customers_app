@@ -7,6 +7,7 @@ import 'package:aquagas/controllers/cart_controller.dart';
 import 'package:aquagas/widgets/cart_widgets.dart';
 import 'package:intl/intl.dart';
 import 'package:aquagas/utils/cart_debugger.dart';
+import 'package:aquagas/utils/pricing_config.dart' as pricing;
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'dart:math' show cos, sqrt, asin, pi, sin;
@@ -34,11 +35,25 @@ class _CartScreenState extends State<CartScreen> {
   Position? _userLocation;
   bool _isLoadingLocation = true;
 
+  // Live pricing constants from the backend (utils/pricing.js /
+  // GET /api/v1/config/pricing) — same source of truth the SmartGasKe
+  // website's cart page uses. The actual delivery method / pickup vendor
+  // type isn't known yet at this stage, so — exactly like the website —
+  // this shows a default estimate (home delivery, non-pickup) and the
+  // final fee is resolved on the checkout screen once that's chosen.
+  pricing.PricingConfig _pricingConfig = pricing.PricingConfig.fallback;
+
   @override
   void initState() {
     super.initState();
     _checkAuthStatus();
     _getUserLocation();
+    _loadPricingConfig();
+  }
+
+  Future<void> _loadPricingConfig() async {
+    final pricing.PricingConfig cfg = await pricing.PricingService.fetchConfig();
+    if (mounted) setState(() => _pricingConfig = cfg);
   }
 
   // ─── Auth / Location ──────────────────────────────────────────────────────
@@ -171,6 +186,13 @@ class _CartScreenState extends State<CartScreen> {
       items: orderItems,
       totalPrice: cart.totalAmount,
       quantity: cart.totalQuantity,
+      // FIX: this was never set, so PaymentOptionsScreen's
+      // _fetchVendorLocation() always found outletId null/empty and
+      // showed "Could not determine which outlet this order belongs to"
+      // as soon as the customer selected Pickup — outlet_id was sitting
+      // right there on the cart item (via _getOutletInfo()) the whole
+      // time, it just wasn't being passed through.
+      outletId: outletInfo?['outlet_id']?.toString(),
     );
 
     Navigator.pushNamed(context, '/payment_options', arguments: appOrder);
@@ -417,6 +439,19 @@ class _CartScreenState extends State<CartScreen> {
     final bool canCheckout =
         !_isProcessing && !_hasMultipleOutlets() && cart.isNotEmpty;
 
+    // Preview only — mirrors calculateCartPricing() in
+    // lib/utils/pricing_config.dart (and calculateOrderPricing() on the
+    // backend / SmartGasKe website's cart page): default estimate assuming
+    // home delivery, since the actual delivery method / pickup vendor type
+    // isn't chosen until the checkout screen. The backend always
+    // re-derives the real charge server-side regardless of what's shown
+    // here.
+    final pricing.CartPricing preview = pricing.calculateCartPricing(
+      subtotal,
+      config: _pricingConfig,
+      isEstimate: true,
+    );
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -443,27 +478,71 @@ class _CartScreenState extends State<CartScreen> {
                   style:
                       const TextStyle(fontSize: 13, color: Color(0xFF64748B)),
                 ),
-                Row(
-                  children: <Widget>[
-                    const Text('Subtotal  ',
-                        style:
-                            TextStyle(fontSize: 13, color: Color(0xFF64748B))),
-                    Text(
-                      fmt.format(subtotal),
-                      style: const TextStyle(
-                        fontSize: 18,
+                Text('Subtotal  ${fmt.format(subtotal)}',
+                    style: const TextStyle(
+                        fontSize: 13, color: Color(0xFF64748B))),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: <Widget>[
+                Text(
+                  'Tax (${(_pricingConfig.taxRate * 100).toStringAsFixed(0)}%)',
+                  style:
+                      const TextStyle(fontSize: 13, color: Color(0xFF64748B)),
+                ),
+                Text(fmt.format(preview.tax),
+                    style: const TextStyle(
+                        fontSize: 13, color: Color(0xFF64748B))),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: <Widget>[
+                const Text('Est. Delivery',
+                    style:
+                        TextStyle(fontSize: 13, color: Color(0xFF64748B))),
+                Text(
+                  preview.deliveryFee == 0
+                      ? 'FREE'
+                      : fmt.format(preview.deliveryFee),
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: preview.deliveryFee == 0
+                        ? _kGreenDark
+                        : const Color(0xFF64748B),
+                    fontWeight: preview.deliveryFee == 0
+                        ? FontWeight.bold
+                        : FontWeight.normal,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: <Widget>[
+                const Text('Total',
+                    style: TextStyle(
+                        fontSize: 15,
                         fontWeight: FontWeight.bold,
-                        color: Color(0xFF0F172A),
-                        letterSpacing: -0.5,
-                      ),
-                    ),
-                  ],
+                        color: Color(0xFF0F172A))),
+                Text(
+                  fmt.format(preview.total),
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF0F172A),
+                    letterSpacing: -0.5,
+                  ),
                 ),
               ],
             ),
             const SizedBox(height: 4),
             Text(
-              'Delivery fee & tax confirmed at checkout',
+              'Pickup from a gas outlet is free — final total confirmed at checkout',
               style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
               textAlign: TextAlign.right,
             ),

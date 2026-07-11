@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:aquagas/app_order.dart' as models;
 import 'package:aquagas/services/auth_service.dart';
+import 'package:aquagas/utils/pricing_config.dart' as pricing;
 import 'package:uuid/uuid.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -385,7 +386,7 @@ class Cart extends ChangeNotifier {
     try {
       final double subtotal = totalAmount;
       final double taxAmount = calculateTax();
-      final double deliveryFee = 0.0;
+      final double deliveryFee = calculateDeliveryFee();
       final double discountAmount = 0.0;
       final double totalAmountWithTax =
           subtotal + taxAmount + deliveryFee - discountAmount;
@@ -564,13 +565,51 @@ class Cart extends ChangeNotifier {
     return guestOrder;
   }
 
-  double calculateTax() {
-    return totalAmount * 0.16;
+  // ─── Live pricing (mirrors backend utils/pricing.js) ─────────────────────
+  // Previously this hardcoded a 16% tax rate here (vs the backend's real
+  // 6% in utils/pricing.js) and always priced delivery at 0 with no
+  // vendor_type/pickup awareness at all. calculateTax()/getFinalTotal()/
+  // getSummary() now delegate to the same shared helper
+  // (lib/utils/pricing_config.dart) that the cart and checkout screens use,
+  // which fetches the live constants from GET /api/v1/config/pricing —
+  // see PricingService.fetchConfig(). The backend always re-derives these
+  // values server-side at order-creation time regardless of what the
+  // client sends, so this is only ever a preview.
+  pricing.PricingConfig _pricingConfig = pricing.PricingConfig.fallback;
+
+  /// Call once (e.g. in a screen's initState) to refresh the cached live
+  /// pricing constants used by calculateTax()/getFinalTotal()/getSummary().
+  Future<void> loadPricingConfig() async {
+    _pricingConfig = await pricing.PricingService.fetchConfig();
+    notifyListeners();
   }
 
-  double getFinalTotal({double discount = 0.0}) {
+  double calculateTax() {
+    return totalAmount * _pricingConfig.taxRate;
+  }
+
+  /// Estimated delivery/pickup fee for the current cart, before the
+  /// customer has chosen a delivery method or pickup outlet on the
+  /// checkout screen. Mirrors calculateCartPricing() in
+  /// lib/utils/pricing_config.dart (and the backend's
+  /// calculateOrderPricing()): free above the free-delivery threshold for
+  /// home delivery, free for gas-vendor pickup, flat fee for
+  /// general-vendor pickup.
+  double calculateDeliveryFee({bool isPickup = false, String vendorType = 'gas'}) {
+    return pricing
+        .calculateCartPricing(
+          totalAmount,
+          config: _pricingConfig,
+          isPickup: isPickup,
+          vendorType: vendorType,
+        )
+        .deliveryFee;
+  }
+
+  double getFinalTotal({double discount = 0.0, bool includeDeliveryEstimate = false}) {
     final double tax = calculateTax();
-    return totalAmount - discount + tax;
+    final double delivery = includeDeliveryEstimate ? calculateDeliveryFee() : 0.0;
+    return totalAmount - discount + tax + delivery;
   }
 
   Map<String, dynamic> getSummary() {
@@ -580,6 +619,7 @@ class Cart extends ChangeNotifier {
       'totalAmount': totalAmount,
       'totalWithTax': getFinalTotal(),
       'tax': calculateTax(),
+      'estimatedDeliveryFee': calculateDeliveryFee(),
       'items': _items,
     };
   }
