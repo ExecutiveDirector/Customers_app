@@ -467,7 +467,10 @@ class _PaymentOptionsScreenState extends State<PaymentOptionsScreen> {
                 'unit_price': i.price,
               })
           .toList(),
-      'total_price': widget.order.totalPrice + _deliveryFee,
+      'total_price': widget.order.totalPrice +
+          (widget.order.totalPrice *
+              ((_pricingConfig['tax_rate'] as num?)?.toDouble() ?? 0.06)) +
+          _deliveryFee,
       'delivery_address': _addressCtrl.text,
       'delivery_latitude': _location?.latitude,
       'delivery_longitude': _location?.longitude,
@@ -580,7 +583,16 @@ class _PaymentOptionsScreenState extends State<PaymentOptionsScreen> {
   // ─── Build ────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    final double total = widget.order.totalPrice + _deliveryFee;
+    // FIX: this was `widget.order.totalPrice + _deliveryFee` — no tax at
+    // all. _pricingConfig.tax_rate was being fetched but never actually
+    // used anywhere in this screen. The backend was already correctly
+    // adding tax when it recomputes the authoritative charge
+    // (calculateOrderPricing() in utils/pricing.js), so customers were
+    // seeing one total on this screen and then being charged a higher one
+    // with no visible reason why.
+    final double tax = widget.order.totalPrice *
+        ((_pricingConfig['tax_rate'] as num?)?.toDouble() ?? 0.06);
+    final double total = widget.order.totalPrice + tax + _deliveryFee;
     return Scaffold(
       backgroundColor: _kSurface,
       appBar: AppBar(
@@ -1285,6 +1297,12 @@ class _PaymentOptionsScreenState extends State<PaymentOptionsScreen> {
                 )),
             const Divider(height: 16),
             _summaryRow('Subtotal', _currency.format(widget.order.totalPrice)),
+            const SizedBox(height: 4),
+            _summaryRow(
+              'Tax (${(((_pricingConfig['tax_rate'] as num?)?.toDouble() ?? 0.06) * 100).toStringAsFixed(0)}%)',
+              _currency.format(widget.order.totalPrice *
+                  ((_pricingConfig['tax_rate'] as num?)?.toDouble() ?? 0.06)),
+            ),
             const SizedBox(height: 4),
             _summaryRow(
               _deliveryType == 'pickup' ? 'Pickup' : 'Delivery',
