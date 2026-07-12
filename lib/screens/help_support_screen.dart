@@ -9,9 +9,13 @@
 // I've set it to 0710820666 (the AquaGas business line on file). If
 // support should ring a different line than order dispatch, change
 // _supportPhone/_supportEmail below.
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'package:aquagas/services/order_service.dart';
 import 'package:aquagas/services/support_service.dart';
 import 'package:aquagas/theme/app_colors.dart';
 
@@ -109,13 +113,34 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
   }
 
   Future<void> _openNewTicket() async {
-    final bool? created = await showModalBottomSheet<bool>(
+    final Map<String, dynamic>? result =
+        await showModalBottomSheet<Map<String, dynamic>>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => _NewTicketSheet(service: _service),
     );
-    if (created == true) _load();
+    if (result == null || result['success'] != true) return;
+
+    _load();
+    if (!mounted) return;
+
+    if (result['attachmentWarning'] == true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+              'Request submitted. Some photos could not be uploaded — you can add them later by replying on the ticket.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Your request has been submitted.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   Future<void> _openTicket(SupportTicket ticket) async {
@@ -464,9 +489,24 @@ class _NewTicketSheet extends StatefulWidget {
 class _NewTicketSheetState extends State<_NewTicketSheet> {
   final TextEditingController _subject = TextEditingController();
   final TextEditingController _description = TextEditingController();
+  final OrderService _orderService = OrderService();
+  final ImagePicker _picker = ImagePicker();
+
   String _category = 'order_issue';
   bool _submitting = false;
   String? _error;
+
+  // Order linking (optional) — the ticket API itself has no order_id
+  // field, so the selected order number gets woven into the description
+  // text instead. This needs no backend changes to work.
+  List<Map<String, dynamic>>? _orders;
+  Map<String, dynamic>? _selectedOrder;
+
+  // Photo attachments (optional, up to 3). Uploaded best-effort after
+  // the ticket is created — see uploadTicketAttachment's doc comment
+  // for why this is treated as non-fatal.
+  static const int _maxImages = 3;
+  final List<XFile> _images = <XFile>[];
 
   static const List<String> _categories = <String>[
     'order_issue',
@@ -479,6 +519,186 @@ class _NewTicketSheetState extends State<_NewTicketSheet> {
     'other',
   ];
 
+  @override
+  void initState() {
+    super.initState();
+    _loadOrders();
+  }
+
+  /// Loads recent orders for the "link an order" picker. This is a
+  /// best-effort convenience feature — if it fails, the order picker
+  /// just shows an empty/error state and the rest of the form still
+  /// works normally.
+  Future<void> _loadOrders() async {
+    try {
+      final List<Map<String, dynamic>> orders =
+          await _orderService.getUserOrders();
+      if (mounted) setState(() => _orders = orders);
+    } catch (_) {
+      if (mounted) setState(() => _orders = <Map<String, dynamic>>[]);
+    }
+  }
+
+  String _orderLabel(Map<String, dynamic> order) {
+    final String number = order['order_number']?.toString() ??
+        order['id']?.toString() ??
+        order['order_id']?.toString() ??
+        '';
+    return number.isEmpty ? 'Order' : '#$number';
+  }
+
+  String _orderDateLabel(Map<String, dynamic> order) {
+    final DateTime? dt =
+        DateTime.tryParse(order['created_at']?.toString() ?? '');
+    if (dt == null) return '';
+    return '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}';
+  }
+
+  Future<void> _pickOrder() async {
+    final Map<String, dynamic>? chosen =
+        await showModalBottomSheet<Map<String, dynamic>>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) {
+        return Padding(
+          padding: EdgeInsets.only(
+              bottom: MediaQuery.of(context).viewInsets.bottom),
+          child: Container(
+            constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(context).size.height * 0.6),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                        color: AppColors.slate100,
+                        borderRadius: BorderRadius.circular(2)),
+                  ),
+                ),
+                const Text('Select an order',
+                    style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.slate800)),
+                const SizedBox(height: 12),
+                if (_orders == null)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 24),
+                    child: Center(
+                        child: CircularProgressIndicator(
+                            color: AppColors.green500, strokeWidth: 2)),
+                  )
+                else if (_orders!.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 16),
+                    child: Text(
+                      "We couldn't find any past orders to link. You can still describe the order in your message.",
+                      style: TextStyle(color: AppColors.slate500),
+                    ),
+                  )
+                else
+                  Flexible(
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: _orders!.length,
+                      separatorBuilder: (_, __) =>
+                          const Divider(height: 1, color: AppColors.slate100),
+                      itemBuilder: (context, index) {
+                        final Map<String, dynamic> order = _orders![index];
+                        return ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: const Icon(Icons.receipt_long_rounded,
+                              color: AppColors.green600),
+                          title: Text(_orderLabel(order),
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.slate800)),
+                          subtitle: Text(
+                            <String>[
+                              if (_orderDateLabel(order).isNotEmpty)
+                                _orderDateLabel(order),
+                              if ((order['status']?.toString() ?? '')
+                                  .isNotEmpty)
+                                order['status'].toString(),
+                            ].join(' · '),
+                            style:
+                                const TextStyle(color: AppColors.slate500),
+                          ),
+                          onTap: () => Navigator.pop(context, order),
+                        );
+                      },
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+    if (chosen != null) setState(() => _selectedOrder = chosen);
+  }
+
+  Future<void> _addPhoto() async {
+    if (_images.length >= _maxImages) return;
+    final ImageSource? source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            ListTile(
+              leading:
+                  const Icon(Icons.camera_alt_rounded, color: AppColors.green600),
+              title: const Text('Camera'),
+              onTap: () => Navigator.pop(context, ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_rounded,
+                  color: AppColors.green600),
+              title: const Text('Gallery'),
+              onTap: () => Navigator.pop(context, ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (source == null) return;
+
+    try {
+      final XFile? file = await _picker.pickImage(
+        source: source,
+        maxWidth: 1600,
+        imageQuality: 80,
+      );
+      if (file != null && mounted) {
+        setState(() => _images.add(file));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not access photos: $e')),
+        );
+      }
+    }
+  }
+
+  void _removePhoto(int index) {
+    setState(() => _images.removeAt(index));
+  }
+
   Future<void> _submit() async {
     if (_subject.text.trim().isEmpty || _description.text.trim().isEmpty) {
       setState(() => _error = 'Please fill in both fields.');
@@ -488,13 +708,38 @@ class _NewTicketSheetState extends State<_NewTicketSheet> {
       _submitting = true;
       _error = null;
     });
+
+    // Fold the linked order number into the description text, since the
+    // ticket API doesn't have a dedicated order_id field.
+    final String description = _selectedOrder == null
+        ? _description.text.trim()
+        : 'Order ${_orderLabel(_selectedOrder!)}\n\n${_description.text.trim()}';
+
     try {
-      await widget.service.createTicket(
+      final SupportTicket ticket = await widget.service.createTicket(
         subject: _subject.text.trim(),
-        description: _description.text.trim(),
+        description: description,
         category: _category,
       );
-      if (mounted) Navigator.pop(context, true);
+
+      int failedUploads = 0;
+      for (final XFile image in _images) {
+        try {
+          await widget.service.uploadTicketAttachment(
+            ticket.id,
+            File(image.path),
+          );
+        } catch (_) {
+          failedUploads++;
+        }
+      }
+
+      if (mounted) {
+        Navigator.pop(context, <String, dynamic>{
+          'success': true,
+          'attachmentWarning': failedUploads > 0,
+        });
+      }
     } catch (e) {
       setState(() {
         _error = e.toString().replaceFirst('Exception: ', '');
@@ -509,81 +754,203 @@ class _NewTicketSheetState extends State<_NewTicketSheet> {
       padding:
           EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: Container(
+        constraints:
+            BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.88),
         decoration: const BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
         ),
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                margin: const EdgeInsets.only(bottom: 16),
-                decoration: BoxDecoration(
-                    color: AppColors.slate100,
-                    borderRadius: BorderRadius.circular(2)),
-              ),
-            ),
-            const Text('New support request',
-                style: TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.slate800)),
-            const SizedBox(height: 16),
-            DropdownButtonFormField<String>(
-              value: _category,
-              decoration: _fieldDecoration('Category'),
-              items: _categories
-                  .map((String c) => DropdownMenuItem<String>(
-                      value: c, child: Text(_categoryLabel(c))))
-                  .toList(),
-              onChanged: (String? v) =>
-                  setState(() => _category = v ?? _category),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _subject,
-              decoration: _fieldDecoration('Subject'),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _description,
-              decoration: _fieldDecoration('Tell us what happened'),
-              maxLines: 4,
-            ),
-            if (_error != null) ...<Widget>[
-              const SizedBox(height: 8),
-              Text(_error!,
-                  style:
-                      const TextStyle(color: AppColors.red500, fontSize: 12.5)),
-            ],
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _submitting ? null : _submit,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.green500,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                      color: AppColors.slate100,
+                      borderRadius: BorderRadius.circular(2)),
                 ),
-                child: _submitting
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                            color: Colors.white, strokeWidth: 2))
-                    : const Text('Submit',
-                        style: TextStyle(
-                            color: Colors.white, fontWeight: FontWeight.w700)),
               ),
-            ),
-          ],
+              const Text('New support request',
+                  style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.slate800)),
+              const SizedBox(height: 4),
+              const Text(
+                'Linking your order and adding a photo helps us resolve it faster.',
+                style: TextStyle(color: AppColors.slate500, fontSize: 12.5),
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                value: _category,
+                decoration: _fieldDecoration('Category'),
+                items: _categories
+                    .map((String c) => DropdownMenuItem<String>(
+                        value: c, child: Text(_categoryLabel(c))))
+                    .toList(),
+                onChanged: (String? v) =>
+                    setState(() => _category = v ?? _category),
+              ),
+              const SizedBox(height: 12),
+              InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: _pickOrder,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 14, vertical: 14),
+                  decoration: BoxDecoration(
+                    color: AppColors.slate100,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: <Widget>[
+                      const Icon(Icons.receipt_long_rounded,
+                          color: AppColors.slate500, size: 20),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          _selectedOrder == null
+                              ? 'Select order number (optional)'
+                              : 'Order ${_orderLabel(_selectedOrder!)}',
+                          style: TextStyle(
+                            color: _selectedOrder == null
+                                ? AppColors.slate500
+                                : AppColors.slate800,
+                            fontWeight: _selectedOrder == null
+                                ? FontWeight.normal
+                                : FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      if (_selectedOrder != null)
+                        IconButton(
+                          icon: const Icon(Icons.close_rounded,
+                              size: 18, color: AppColors.slate500),
+                          onPressed: () =>
+                              setState(() => _selectedOrder = null),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                        )
+                      else
+                        const Icon(Icons.chevron_right_rounded,
+                            color: AppColors.slate500),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _subject,
+                decoration: _fieldDecoration('Subject'),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _description,
+                decoration: _fieldDecoration('Tell us what happened'),
+                maxLines: 4,
+              ),
+              const SizedBox(height: 12),
+              const Text('Photos (optional)',
+                  style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.slate800)),
+              const SizedBox(height: 8),
+              SizedBox(
+                height: 76,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  children: <Widget>[
+                    for (int i = 0; i < _images.length; i++)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 10),
+                        child: Stack(
+                          clipBehavior: Clip.none,
+                          children: <Widget>[
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: Image.file(
+                                File(_images[i].path),
+                                width: 76,
+                                height: 76,
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                            Positioned(
+                              top: -6,
+                              right: -6,
+                              child: GestureDetector(
+                                onTap: () => _removePhoto(i),
+                                child: Container(
+                                  padding: const EdgeInsets.all(3),
+                                  decoration: const BoxDecoration(
+                                      color: AppColors.slate800,
+                                      shape: BoxShape.circle),
+                                  child: const Icon(Icons.close_rounded,
+                                      size: 12, color: Colors.white),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    if (_images.length < _maxImages)
+                      InkWell(
+                        borderRadius: BorderRadius.circular(12),
+                        onTap: _addPhoto,
+                        child: Container(
+                          width: 76,
+                          height: 76,
+                          decoration: BoxDecoration(
+                            color: AppColors.slate100,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                                color: AppColors.slate100, width: 1),
+                          ),
+                          child: const Icon(Icons.add_a_photo_rounded,
+                              color: AppColors.slate500),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              if (_error != null) ...<Widget>[
+                const SizedBox(height: 8),
+                Text(_error!,
+                    style: const TextStyle(
+                        color: AppColors.red500, fontSize: 12.5)),
+              ],
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _submitting ? null : _submit,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.green500,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: _submitting
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                              color: Colors.white, strokeWidth: 2))
+                      : const Text('Submit',
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700)),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
