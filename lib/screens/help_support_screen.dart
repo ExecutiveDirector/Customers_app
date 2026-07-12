@@ -980,6 +980,7 @@ class _TicketDetailScreenState extends State<_TicketDetailScreen> {
   SupportTicket? _ticket;
   String? _error;
   bool _sending = false;
+  bool _closing = false;
 
   @override
   void initState() {
@@ -1013,6 +1014,88 @@ class _TicketDetailScreenState extends State<_TicketDetailScreen> {
       }
     } finally {
       if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  /// Customer-initiated close. This is a deliberate, confirmed action —
+  /// closing isn't reversible from this screen, so we check first.
+  Future<void> _confirmClose() async {
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Close this request?'),
+        content: const Text(
+          "If your issue is resolved you can close it now. You won't be able to send further messages, but you can always open a new request.",
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.green600),
+            child: const Text('Close request'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) _closeTicket();
+  }
+
+  Future<void> _closeTicket() async {
+    setState(() => _closing = true);
+    try {
+      await widget.service.closeTicket(widget.ticketId);
+      await _load();
+      if (mounted) await _promptSatisfaction();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _closing = false);
+    }
+  }
+
+  /// Shown right after the customer closes the ticket — this is the
+  /// natural moment to ask "how did we do?" while the interaction is
+  /// still fresh, rather than tucking it away in a settings menu they
+  /// may never visit.
+  Future<void> _promptSatisfaction() async {
+    if (!mounted) return;
+    final _SatisfactionResult? result = await showDialog<_SatisfactionResult>(
+      context: context,
+      barrierDismissible: true,
+      builder: (_) => const _SatisfactionDialog(),
+    );
+    if (result == null) return; // user skipped
+
+    try {
+      await widget.service.submitTicketFeedback(
+        widget.ticketId,
+        rating: result.rating,
+        comment: result.comment,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Thanks for the feedback!'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+                'Ticket closed, but feedback could not be sent: ${e.toString().replaceFirst('Exception: ', '')}'),
+          ),
+        );
+      }
     }
   }
 
@@ -1053,6 +1136,24 @@ class _TicketDetailScreenState extends State<_TicketDetailScreen> {
                             fontWeight: FontWeight.w700,
                             color: AppColors.slate800)),
                   ),
+                  if (_ticket != null && !closed)
+                    _closing
+                        ? const Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 14),
+                            child: SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: AppColors.green500),
+                            ),
+                          )
+                        : TextButton(
+                            onPressed: _confirmClose,
+                            style: TextButton.styleFrom(
+                                foregroundColor: AppColors.green600),
+                            child: const Text('Close',
+                                style: TextStyle(fontWeight: FontWeight.w700)),
+                          ),
                 ],
               ),
             ),
@@ -1169,6 +1270,117 @@ class _TicketDetailScreenState extends State<_TicketDetailScreen> {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Result returned from [_SatisfactionDialog].
+class _SatisfactionResult {
+  final int rating;
+  final String? comment;
+  const _SatisfactionResult({required this.rating, this.comment});
+}
+
+/// "How did we do?" prompt shown right after a customer closes their own
+/// support request. A 1–5 star rating plus an optional comment, either
+/// of which can be skipped entirely (barrier-dismissible, and there's a
+/// visible "Skip" action) so it never feels like it's holding the
+/// customer hostage after they've already resolved their issue.
+class _SatisfactionDialog extends StatefulWidget {
+  const _SatisfactionDialog();
+
+  @override
+  State<_SatisfactionDialog> createState() => _SatisfactionDialogState();
+}
+
+class _SatisfactionDialogState extends State<_SatisfactionDialog> {
+  int _rating = 0;
+  final TextEditingController _comment = TextEditingController();
+
+  @override
+  void dispose() {
+    _comment.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      shape:
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      title: const Text('How was your experience?',
+          style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          const Text(
+            'Your request is closed. A quick rating helps us improve support.',
+            style: TextStyle(color: AppColors.slate500, fontSize: 13),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List<Widget>.generate(5, (index) {
+              final int starValue = index + 1;
+              return IconButton(
+                onPressed: () => setState(() => _rating = starValue),
+                icon: Icon(
+                  starValue <= _rating
+                      ? Icons.star_rounded
+                      : Icons.star_border_rounded,
+                  color: AppColors.amber500,
+                  size: 32,
+                ),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                splashRadius: 22,
+              );
+            }),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _comment,
+            maxLines: 3,
+            decoration: InputDecoration(
+              hintText: 'Anything you\'d like to add? (optional)',
+              filled: true,
+              fillColor: AppColors.slate100,
+              border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none),
+            ),
+          ),
+        ],
+      ),
+      actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      actions: <Widget>[
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Skip',
+              style: TextStyle(color: AppColors.slate500)),
+        ),
+        ElevatedButton(
+          onPressed: _rating == 0
+              ? null
+              : () => Navigator.pop(
+                    context,
+                    _SatisfactionResult(
+                      rating: _rating,
+                      comment: _comment.text.trim().isEmpty
+                          ? null
+                          : _comment.text.trim(),
+                    ),
+                  ),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.green500,
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10)),
+          ),
+          child: const Text('Submit',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+        ),
+      ],
     );
   }
 }
