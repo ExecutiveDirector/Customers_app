@@ -234,6 +234,55 @@ class SupportService {
     }
   }
 
+  /// Lets the customer close their own ticket.
+  ///
+  /// NOTE: like uploadTicketAttachment above, I couldn't find this route
+  /// documented in this repo. I've modeled it on the same convention this
+  /// codebase already uses for customer-initiated status changes (see
+  /// OrderService.cancelOrder(), which POSTs to `/orders/:id/cancel`) —
+  /// but the backend needs a matching `POST /support/tickets/:id/close`
+  /// route for this to actually work.
+  Future<void> closeTicket(String ticketId) async {
+    try {
+      final http.Response response = await http
+          .post(Uri.parse('$_baseUrl/tickets/$ticketId/close'),
+              headers: await _headers())
+          .timeout(const Duration(seconds: 15));
+      if (response.statusCode != 200 && response.statusCode != 204) {
+        throw Exception('Failed to close your request (${response.statusCode}).');
+      }
+    } catch (e) {
+      throw _friendlyError(e);
+    }
+  }
+
+  /// Submits a post-close satisfaction rating (1-5) with an optional
+  /// comment. Same caveat as [closeTicket] — this assumes a
+  /// `POST /support/tickets/:id/feedback` route exists.
+  Future<void> submitTicketFeedback(
+    String ticketId, {
+    required int rating,
+    String? comment,
+  }) async {
+    try {
+      final http.Response response = await http
+          .post(
+            Uri.parse('$_baseUrl/tickets/$ticketId/feedback'),
+            headers: await _headers(),
+            body: jsonEncode(<String, dynamic>{
+              'rating': rating,
+              if (comment != null && comment.isNotEmpty) 'comment': comment,
+            }),
+          )
+          .timeout(const Duration(seconds: 15));
+      if (response.statusCode != 200 && response.statusCode != 201) {
+        throw Exception('Failed to submit feedback (${response.statusCode}).');
+      }
+    } catch (e) {
+      throw _friendlyError(e);
+    }
+  }
+
   Future<SupportMessage> replyToTicket(String ticketId, String message) async {
     try {
       final http.Response response = await http
