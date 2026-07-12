@@ -202,6 +202,38 @@ class SupportService {
     }
   }
 
+  /// Uploads a single photo attachment for an existing ticket.
+  ///
+  /// NOTE: this endpoint (`/tickets/:id/attachments`) mirrors the same
+  /// multipart pattern already used for profile-avatar uploads elsewhere
+  /// in this app (see profile_service.dart / auth_service.dart), but it
+  /// is not documented anywhere in this repo — I could not confirm the
+  /// backend actually implements it. Callers should treat failures here
+  /// as non-fatal (the ticket itself is created via [createTicket]
+  /// first and independently of this call).
+  Future<void> uploadTicketAttachment(String ticketId, File imageFile) async {
+    try {
+      final String? token = await _authService.getToken();
+      final http.MultipartRequest request = http.MultipartRequest(
+        'POST',
+        Uri.parse('$_baseUrl/tickets/$ticketId/attachments'),
+      );
+      if (token != null) request.headers['Authorization'] = 'Bearer $token';
+      request.files
+          .add(await http.MultipartFile.fromPath('attachment', imageFile.path));
+
+      final http.StreamedResponse streamed =
+          await request.send().timeout(const Duration(seconds: 20));
+
+      if (streamed.statusCode != 200 && streamed.statusCode != 201) {
+        throw Exception(
+            'Failed to upload attachment (${streamed.statusCode}).');
+      }
+    } catch (e) {
+      throw _friendlyError(e);
+    }
+  }
+
   Future<SupportMessage> replyToTicket(String ticketId, String message) async {
     try {
       final http.Response response = await http
