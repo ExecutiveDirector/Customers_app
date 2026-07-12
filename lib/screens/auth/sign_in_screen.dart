@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:aquagas/app.dart';
 import 'package:aquagas/widgets/sign_in_widgets.dart';
@@ -23,10 +24,13 @@ class _SignInScreenState extends State<SignInScreen> {
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
   final AuthService _authService = AuthService();
 
-  // State
-  bool _rememberMe = false;
-  bool _isLoading = false;
-  bool _obscurePassword = true;
+  // State is held in ValueNotifiers rather than plain fields + setState().
+  // Each sign-in widget only listens to the notifier(s) it actually
+  // needs, so e.g. toggling password visibility no longer rebuilds the
+  // logo, header, or sign-in button — only the password field repaints.
+  final ValueNotifier<bool> _rememberMe = ValueNotifier<bool>(false);
+  final ValueNotifier<bool> _isLoading = ValueNotifier<bool>(false);
+  final ValueNotifier<bool> _obscurePassword = ValueNotifier<bool>(true);
 
   @override
   void initState() {
@@ -48,26 +52,23 @@ class _SignInScreenState extends State<SignInScreen> {
     try {
       final String? storedEmail = await _storage.read(key: 'email');
       if (storedEmail != null && storedEmail.isNotEmpty && mounted) {
-        setState(() {
-          _emailController.text = storedEmail;
-          _rememberMe = true;
-        });
+        _emailController.text = storedEmail;
+        _rememberMe.value = true;
       }
     } catch (e) {
       debugPrint('Error loading credentials: $e');
     }
   }
 
-  // /// Navigate to home
-  // void _navigateToHome() {
-  //   Navigator.pushReplacementNamed(context, Routes.home);
-  // }
-
   /// Handle email/password sign in
   Future<void> _handleSignIn() async {
-    if (!_formKey.currentState!.validate()) return;
+    FocusScope.of(context).unfocus();
+    if (!_formKey.currentState!.validate()) {
+      HapticFeedback.lightImpact();
+      return;
+    }
 
-    setState(() => _isLoading = true);
+    _isLoading.value = true;
 
     try {
       final result = await _authService.signInWithPassword(
@@ -86,19 +87,20 @@ class _SignInScreenState extends State<SignInScreen> {
       _navigateToHome();
     } on AuthException catch (e) {
       if (!mounted) return;
+      HapticFeedback.selectionClick();
       _showErrorSnackBar(_authService.getAuthErrorMessage(e));
     } catch (e) {
       if (!mounted) return;
       _showErrorSnackBar('Unexpected error: $e');
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) _isLoading.value = false;
     }
   }
 
   /// Save or delete email based on "Remember Me" preference
   Future<void> _handleRememberMe() async {
     try {
-      if (_rememberMe) {
+      if (_rememberMe.value) {
         await _storage.write(key: 'email', value: _emailController.text.trim());
       } else {
         await _storage.delete(key: 'email');
@@ -111,28 +113,28 @@ class _SignInScreenState extends State<SignInScreen> {
 
   /// Handle Google OAuth sign in (optional)
   Future<void> _handleGoogleSignIn() async {
-    setState(() => _isLoading = true);
+    _isLoading.value = true;
     try {
       _showErrorSnackBar('Google sign-in not yet implemented');
     } catch (e) {
       if (!mounted) return;
       _showErrorSnackBar('Google sign-in failed: $e');
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) _isLoading.value = false;
     }
   }
 
   /// Navigation helpers
   /// Navigate to sign up screen
   void _navigateToSignUp() {
-    if (!_isLoading) {
+    if (!_isLoading.value) {
       Navigator.pushNamed(context, Routes.signUp);
     }
   }
 
   /// Navigate to forgot password screen
   void _navigateToForgotPassword() {
-    if (!_isLoading) {
+    if (!_isLoading.value) {
       Navigator.pushNamed(context, Routes.forgotPassword);
     }
   }
@@ -144,11 +146,11 @@ class _SignInScreenState extends State<SignInScreen> {
 
   /// UI helpers
   void _togglePasswordVisibility() {
-    setState(() => _obscurePassword = !_obscurePassword);
+    _obscurePassword.value = !_obscurePassword.value;
   }
 
   void _updateRememberMe(bool? value) {
-    setState(() => _rememberMe = value ?? false);
+    _rememberMe.value = value ?? false;
   }
 
   void _showErrorSnackBar(String message) {
@@ -158,6 +160,7 @@ class _SignInScreenState extends State<SignInScreen> {
         content: Text(message, style: const TextStyle(color: Colors.white)),
         backgroundColor: Colors.red.shade700,
         behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         margin: const EdgeInsets.all(16),
         duration: const Duration(seconds: 4),
       ),
@@ -171,6 +174,7 @@ class _SignInScreenState extends State<SignInScreen> {
         content: Text(message, style: const TextStyle(color: Colors.white)),
         backgroundColor: Colors.green.shade700,
         behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         margin: const EdgeInsets.all(16),
         duration: const Duration(seconds: 2),
       ),
@@ -181,6 +185,9 @@ class _SignInScreenState extends State<SignInScreen> {
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
+    _rememberMe.dispose();
+    _isLoading.dispose();
+    _obscurePassword.dispose();
     super.dispose();
   }
 
@@ -188,7 +195,7 @@ class _SignInScreenState extends State<SignInScreen> {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final MediaQueryData mediaQuery = MediaQuery.of(context);
-    final double buttonHeight = mediaQuery.size.height * 0.07;
+    final double buttonHeight = (mediaQuery.size.height * 0.07).clamp(48.0, 58.0);
 
     return Scaffold(
       appBar: AppBar(
@@ -198,7 +205,13 @@ class _SignInScreenState extends State<SignInScreen> {
       body: Stack(
         children: <Widget>[
           _buildMainContent(buttonHeight),
-          if (_isLoading) _buildLoadingOverlay(),
+          // Only the overlay rebuilds when isLoading flips — the rest of
+          // the form tree (email/password/remember-me/etc.) is untouched.
+          ValueListenableBuilder<bool>(
+            valueListenable: _isLoading,
+            builder: (context, loading, _) =>
+                loading ? _buildLoadingOverlay() : const SizedBox.shrink(),
+          ),
         ],
       ),
     );
@@ -207,7 +220,9 @@ class _SignInScreenState extends State<SignInScreen> {
   /// Build main scrollable content
   Widget _buildMainContent(double buttonHeight) {
     return SingleChildScrollView(
+      // Keeps the form usable when the keyboard opens on smaller screens.
       padding: const EdgeInsets.all(16),
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       child: Form(
         key: _formKey,
         child: Column(
