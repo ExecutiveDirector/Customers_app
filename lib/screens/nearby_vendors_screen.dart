@@ -85,12 +85,12 @@ class _NearbyVendorsScreenState extends State<NearbyVendorsScreen> {
       });
 
       debugPrint(
-          '📍 User location: ${position.latitude}, ${position.longitude}');
+          '馃搷 User location: ${position.latitude}, ${position.longitude}');
 
       // Fetch nearby outlets
       await _fetchNearbyOutlets(position.latitude, position.longitude);
     } catch (e) {
-      debugPrint('❌ Error getting location: $e');
+      debugPrint('鉂� Error getting location: $e');
       setState(() {
         _errorMessage = 'Failed to get your location: $e';
         _isLoading = false;
@@ -119,7 +119,7 @@ class _NearbyVendorsScreenState extends State<NearbyVendorsScreen> {
         _isLoading = false;
       });
 
-      debugPrint('✅ Loaded ${outlets.length} nearby outlets');
+      debugPrint('鉁� Loaded ${outlets.length} nearby outlets');
     } catch (e) {
       setState(() {
         _errorMessage = e.toString().replaceAll('Exception: ', '');
@@ -147,17 +147,27 @@ class _NearbyVendorsScreenState extends State<NearbyVendorsScreen> {
             vendorName.contains(searchQuery);
 
         final isOpen = outlet['is_open'] == true;
-        final distance = (outlet['distance_km'] as num?)?.toDouble() ?? 0.0;
+        // null distance_km means this outlet is exempt from location
+        // restriction (nationwide vendor) 鈥� treat as "not nearby" for the
+        // 'Nearest' filter rather than defaulting to 0.0, which would
+        // otherwise wrongly count it as the closest possible outlet.
+        final bool isNationwide =
+            outlet['nationwide'] == true || outlet['distance_km'] == null;
+        final double? distance = isNationwide
+            ? null
+            : (outlet['distance_km'] as num?)?.toDouble();
 
         final matchesFilter = _selectedFilter == 'All' ||
             (_selectedFilter == 'Open' && isOpen) ||
             (_selectedFilter == 'Closed' && !isOpen) ||
-            (_selectedFilter == 'Nearest' && distance <= 10.0);
+            (_selectedFilter == 'Nearest' &&
+                distance != null &&
+                distance <= 10.0);
 
         return matchesSearch && matchesFilter;
       }).toList();
 
-      // Sort by distance
+      // Sort by distance 鈥� nationwide outlets (no distance) sort to the end
       _filteredOutlets.sort((a, b) {
         final distA = (a['distance_km'] as num?)?.toDouble() ?? double.infinity;
         final distB = (b['distance_km'] as num?)?.toDouble() ?? double.infinity;
@@ -436,6 +446,8 @@ class _NearbyVendorsScreenState extends State<NearbyVendorsScreen> {
     final outletName = outlet['outlet_name']?.toString() ?? 'Unknown Outlet';
     final vendorName = outlet['vendor_name']?.toString() ?? '';
     final address = outlet['address']?.toString() ?? 'Address not available';
+    final bool isNationwide =
+        outlet['nationwide'] == true || outlet['distance_km'] == null;
     final distanceKm = (outlet['distance_km'] as num?)?.toDouble() ?? 0.0;
     final isOpen = outlet['is_open'] == true;
 
@@ -559,24 +571,32 @@ class _NearbyVendorsScreenState extends State<NearbyVendorsScreen> {
                   ],
                 ),
                 const SizedBox(height: 12),
-                // Distance
+                // Distance (or nationwide badge for location-exempt vendors)
                 Row(
                   children: [
-                    Icon(Icons.navigation, size: 16, color: Colors.blue[700]),
+                    Icon(
+                      isNationwide ? Icons.public : Icons.navigation,
+                      size: 16,
+                      color: Colors.blue[700],
+                    ),
                     const SizedBox(width: 6),
                     Text(
-                      _formatDistance(distanceKm),
+                      isNationwide
+                          ? 'Delivers Nationwide'
+                          : _formatDistance(distanceKm),
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
                         color: Colors.blue[700],
                       ),
                     ),
-                    const SizedBox(width: 4),
-                    Text(
-                      'away',
-                      style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-                    ),
+                    if (!isNationwide) ...[
+                      const SizedBox(width: 4),
+                      Text(
+                        'away',
+                        style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                      ),
+                    ],
                   ],
                 ),
                 const SizedBox(height: 8),
