@@ -501,23 +501,12 @@ class _HomePageState extends State<HomePage> {
               locationLabel: _locationLabel,
               notificationCount: _unreadNotifications,
               onMenuTap: () => Scaffold.of(context).openDrawer(),
-              onSearch: (String query) {
-                // Real search is intentionally not wired up here in this
-                // pass — HomePage had a no-op `onSearch` already. The
-                // search bar is visually redesigned; backend integration
-                // is a follow-up.
-                debugPrint('🔍 Search query: "$query"');
-              },
               onNotificationsTap: () {
                 Navigator.pushNamed(context, Routes.notifications)
                     .then((_) => _fetchUnreadCount());
               },
               onLocationTap: () {
                 Navigator.pushNamed(context, Routes.changeLocation)
-                    .then((_) => _fetchUserProfile());
-              },
-              onProfileTap: () {
-                Navigator.pushNamed(context, Routes.profile)
                     .then((_) => _fetchUserProfile());
               },
             ),

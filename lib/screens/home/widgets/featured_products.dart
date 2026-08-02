@@ -56,16 +56,16 @@ class FeaturedProducts extends StatelessWidget {
           subtitle: 'Top picks near you, updated daily',
         ),
         SizedBox(
-          height: 188,
+          height: 248,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
             itemCount: featured.length,
             separatorBuilder: (BuildContext _, int __) =>
-                const SizedBox(width: AppSpacing.xs),
+                const SizedBox(width: AppSpacing.sm),
             itemBuilder: (BuildContext context, int i) {
               return SizedBox(
-                width: 200,
+                width: 156,
                 child: _FeaturedCard(
                   product: featured[i],
                   onAddToCart: () => onAddToCart(featured[i]),
@@ -115,12 +115,13 @@ class _FeaturedCard extends StatelessWidget {
             border: Border.all(color: AppColors.slate100),
             borderRadius: BorderRadius.circular(AppRadius.md),
           ),
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
-              // Square image
+              // Full-width image on top — gives the content column below
+              // its full width instead of splitting it with the image.
               SizedBox(
-                width: 110,
-                height: double.infinity,
+                height: 100,
                 child: Stack(
                   children: <Widget>[
                     Positioned.fill(
@@ -143,13 +144,13 @@ class _FeaturedCard extends StatelessWidget {
                   ],
                 ),
               ),
-              // Right side
+              // Content
               Expanded(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(
                     AppSpacing.sm,
                     AppSpacing.xs,
-                    AppSpacing.xs,
+                    AppSpacing.sm,
                     AppSpacing.xs,
                   ),
                   child: Column(
@@ -166,54 +167,63 @@ class _FeaturedCard extends StatelessWidget {
                           height: 1.25,
                         ),
                       ),
-                      const SizedBox(height: 4),
-                      if (product.brand != null &&
-                          product.brand!.trim().isNotEmpty)
-                        Text(
-                          product.brand!,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 11,
-                            color: AppColors.slate500,
-                          ),
-                        ),
-                      const Spacer(),
+                      const SizedBox(height: 3),
                       Row(
                         children: <Widget>[
                           const Icon(
                             Icons.star_rounded,
                             color: AppColors.warning,
-                            size: 14,
+                            size: 13,
                           ),
                           const SizedBox(width: 2),
                           Text(
                             product.rating.toStringAsFixed(1),
                             style: const TextStyle(
-                              fontSize: 11.5,
+                              fontSize: 11,
                               fontWeight: FontWeight.w700,
                               color: AppColors.slate700,
                             ),
                           ),
+                          if (product.brand != null &&
+                              product.brand!.trim().isNotEmpty) ...<Widget>[
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                '· ${product.brand!}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: AppColors.slate500,
+                                ),
+                              ),
+                            ),
+                          ],
                         ],
                       ),
-                      const SizedBox(height: 2),
+                      const Spacer(),
+                      // Price gets the card's full content width now,
+                      // instead of sharing ~74px with the add button.
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: <Widget>[
                           Expanded(
-                            child: Text(
-                              currencyFormatter.format(product.price),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w800,
-                                color: AppColors.brandDark,
-                                letterSpacing: -0.2,
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                currencyFormatter.format(product.price),
+                                maxLines: 1,
+                                style: const TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.brandDark,
+                                  letterSpacing: -0.2,
+                                ),
                               ),
                             ),
                           ),
+                          const SizedBox(width: 6),
                           _AddButton(
                             inStock: inStock,
                             onTap: onAddToCart,
