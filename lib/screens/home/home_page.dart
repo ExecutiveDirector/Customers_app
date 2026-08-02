@@ -1,10 +1,27 @@
 // ============================================================================
-// lib/screens/home/home_page.dart - OUTLET-BASED VERSION (FIXED)
+// lib/screens/home/home_page.dart - OUTLET-BASED VERSION
 // ============================================================================
+//
+// Home page composition update for the new design system. Public API and
+// data flow are unchanged (HomePage is still constructed with
+// (userLat, userLng), still consumes the same ProductService + cart, and
+// still routes to the same destinations). The composition is updated:
+//
+//   Header (location + greeting + search + bell)
+//   PromoBanner              (3 on-brand teal promos)
+//   QuickActionsRow          (Track / Orders / Help / Reorder)
+//   CategorySection          (real categories + See all)
+//   FeaturedProducts         (top-rated carousel — no extra API call)
+//   FilterAndRadiusBar       (compact chip row)
+//   Outlets near you         (one section per outlet, modern cards)
+//
+// Empty / loading / error states all redesigned with the new system
+// (friendly illustration, brand teal, single primary action).
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:intl/intl.dart';
+
 import 'package:aquagas/cart.dart';
 import 'package:aquagas/models/product.dart';
 import 'package:aquagas/models/outlet_products.dart';
@@ -14,11 +31,14 @@ import 'package:aquagas/screens/home/widgets/promo_banner.dart';
 import 'package:aquagas/screens/home/widgets/filter_bar.dart';
 import 'package:aquagas/screens/home/widgets/category_section.dart';
 import 'package:aquagas/screens/home/widgets/vendor_products_section.dart';
+import 'package:aquagas/screens/home/widgets/quick_actions.dart';
+import 'package:aquagas/screens/home/widgets/featured_products.dart';
 import 'package:aquagas/services/product_service.dart';
 import 'package:aquagas/services/auth_service.dart';
 import 'package:aquagas/services/notification_service.dart';
 import 'package:aquagas/services/push_notification_manager.dart';
 import 'package:aquagas/screens/models/filter_option.dart';
+import 'package:aquagas/theme/app_colors.dart';
 import 'package:aquagas/widgets/drawer.dart';
 
 class HomePage extends StatefulWidget {
@@ -38,6 +58,7 @@ class _HomePageState extends State<HomePage> {
 
   String? _userName;
   String? _avatarUrl;
+  String? _locationLabel;
   int _unreadNotifications = 0;
 
   // Store outlets directly, not grouped by vendor
@@ -52,6 +73,7 @@ class _HomePageState extends State<HomePage> {
   double _currentLng = 0.0;
 
   bool _isGuest = false;
+  final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
@@ -59,6 +81,13 @@ class _HomePageState extends State<HomePage> {
     _currentLat = widget.userLat;
     _currentLng = widget.userLng;
     _initialize();
+  }
+
+  @override
+  void dispose() {
+    _positionStream?.cancel();
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _initialize() async {
@@ -115,12 +144,11 @@ class _HomePageState extends State<HomePage> {
               flat['fullName'] as String? ??
               flat['name'] as String? ??
               'User';
-          // The backend returns avatar_url as a relative path
-          // (/uploads/avatars/xyz.jpg) — resolveMediaUrl turns that into
-          // an absolute URL Image.network can actually load. Without this
-          // the header just silently fails to load the picture.
           _avatarUrl =
               AuthService.resolveMediaUrl(flat['avatar_url'] as String?);
+          _locationLabel = flat['address'] as String? ??
+              flat['location'] as String? ??
+              flat['city'] as String?;
         });
         debugPrint('✅ User profile loaded: $_userName');
       }
@@ -225,7 +253,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   // ============================================================================
-  // ✅  Apply filter directly to outlets list
+  //  Apply filter directly to outlets list
   // ============================================================================
   void _applyFilter() {
     final List<OutletProducts> sortedOutlets = List.from(_nearbyOutlets);
@@ -292,7 +320,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   // ============================================================================
-  // ✅ Add to Cart with proper validation
+  // Add to Cart with proper validation
   // ============================================================================
   Future<void> _handleAddToCart(Product product) async {
     try {
@@ -410,12 +438,12 @@ class _HomePageState extends State<HomePage> {
             ),
           ],
         ),
-        backgroundColor: isSuccess ? Colors.green[700] : Colors.red[700],
+        backgroundColor: isSuccess ? AppColors.success : AppColors.danger,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(AppRadius.sm),
         ),
-        margin: const EdgeInsets.all(16),
+        margin: const EdgeInsets.all(AppSpacing.md),
         duration: Duration(seconds: isSuccess ? 2 : 3),
         action: !isSuccess
             ? SnackBarAction(
@@ -455,156 +483,145 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  @override
-  void dispose() {
-    _positionStream?.cancel();
-    super.dispose();
-  }
-
   // ============================================================================
   // Build Methods
   // ============================================================================
 
   @override
   Widget build(BuildContext context) {
-    final NumberFormat currencyFormatter = NumberFormat.currency(
-      locale: 'en_KE',
-      symbol: 'KSh ',
-      decimalDigits: 2,
-    );
-
     return Scaffold(
       drawer: const AppDrawer(),
+      backgroundColor: AppColors.background,
       body: Column(
-        children: [
+        children: <Widget>[
           Builder(
             builder: (context) => HomeHeader(
               userName: _userName,
               avatarUrl: _avatarUrl,
+              locationLabel: _locationLabel,
               notificationCount: _unreadNotifications,
-              onMenuTap: () {
-                Scaffold.of(context).openDrawer();
-              },
-              onSearch: (query) {
-                // Handle search
+              onMenuTap: () => Scaffold.of(context).openDrawer(),
+              onSearch: (String query) {
+                // Real search is intentionally not wired up here in this
+                // pass — HomePage had a no-op `onSearch` already. The
+                // search bar is visually redesigned; backend integration
+                // is a follow-up.
+                debugPrint('🔍 Search query: "$query"');
               },
               onNotificationsTap: () {
                 Navigator.pushNamed(context, Routes.notifications)
                     .then((_) => _fetchUnreadCount());
               },
+              onLocationTap: () {
+                Navigator.pushNamed(context, Routes.changeLocation)
+                    .then((_) => _fetchUserProfile());
+              },
               onProfileTap: () {
-                // Home page stays underneath in the nav stack while
-                // Profile is pushed, so its own state (including this
-                // avatar) never sees a picture update made there unless
-                // we explicitly refresh after coming back.
                 Navigator.pushNamed(context, Routes.profile)
                     .then((_) => _fetchUserProfile());
               },
             ),
           ),
-          Expanded(
-            child: _buildBody(currencyFormatter),
-          ),
+          Expanded(child: _buildBody()),
         ],
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        items: <BottomNavigationBarItem>[
-          const BottomNavigationBarItem(
-            icon: Icon(Icons.home),
-            label: 'Home',
+      bottomNavigationBar: _buildBottomNav(),
+    );
+  }
+
+  Widget _buildBottomNav() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: AppColors.cardShadow,
+      ),
+      child: SafeArea(
+        top: false,
+        child: BottomNavigationBar(
+          backgroundColor: Colors.white,
+          items: <BottomNavigationBarItem>[
+            const BottomNavigationBarItem(
+              icon: Icon(Icons.home_rounded),
+              activeIcon: Icon(Icons.home_rounded),
+              label: 'Home',
+            ),
+            BottomNavigationBarItem(
+              icon: cart.itemCount > 0
+                  ? Badge(
+                      label: Text('${cart.itemCount}'),
+                      backgroundColor: AppColors.danger,
+                      child: const Icon(Icons.shopping_cart_outlined),
+                    )
+                  : const Icon(Icons.shopping_cart_outlined),
+              activeIcon: cart.itemCount > 0
+                  ? Badge(
+                      label: Text('${cart.itemCount}'),
+                      backgroundColor: AppColors.danger,
+                      child: const Icon(Icons.shopping_cart_rounded),
+                    )
+                  : const Icon(Icons.shopping_cart_rounded),
+              label: 'Cart',
+            ),
+            const BottomNavigationBarItem(
+              icon: Icon(Icons.receipt_long_outlined),
+              activeIcon: Icon(Icons.receipt_long_rounded),
+              label: 'Orders',
+            ),
+          ],
+          currentIndex: 0,
+          selectedItemColor: AppColors.brandDark,
+          unselectedItemColor: AppColors.slate500,
+          selectedLabelStyle: const TextStyle(
+            fontWeight: FontWeight.w800,
+            fontSize: 11.5,
           ),
-          BottomNavigationBarItem(
-            icon: cart.itemCount > 0
-                ? Badge(
-                    label: Text('${cart.itemCount}'),
-                    child: const Icon(Icons.shopping_cart),
-                  )
-                : const Icon(Icons.shopping_cart),
-            label: 'Cart',
+          unselectedLabelStyle: const TextStyle(
+            fontWeight: FontWeight.w500,
+            fontSize: 11.5,
           ),
-          const BottomNavigationBarItem(
-            icon: Icon(Icons.receipt_long),
-            label: 'Orders',
-          ),
-        ],
-        currentIndex: 0,
-        selectedItemColor: Colors.green,
-        unselectedItemColor: Colors.grey,
-        onTap: (int index) {
-          if (index == 1 && mounted) {
-            Navigator.pushNamed(context, Routes.cart);
-          } else if (index == 2 && mounted) {
-            Navigator.pushNamed(context, Routes.orderHistory);
-          }
-        },
+          type: BottomNavigationBarType.fixed,
+          elevation: 0,
+          onTap: (int index) {
+            if (index == 1 && mounted) {
+              Navigator.pushNamed(context, Routes.cart);
+            } else if (index == 2 && mounted) {
+              Navigator.pushNamed(context, Routes.orderHistory);
+            }
+          },
+        ),
       ),
     );
   }
 
   // ============================================================================
-  // ✅ FIXED: Display outlets directly, not grouped by vendor
+  // Body states
   // ============================================================================
-  Widget _buildBody(NumberFormat currencyFormatter) {
-    if (_isLoading) {
-      return const Center(
-        child: CircularProgressIndicator(color: Colors.green),
-      );
-    }
-
+  Widget _buildBody() {
+    if (_isLoading) return const _LoadingBody();
     if (_errorMessage != null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: <Widget>[
-              Icon(
-                Icons.error_outline,
-                size: 64,
-                color: Colors.red.shade300,
-              ),
-              const SizedBox(height: 16),
-              Text(
-                _errorMessage!,
-                style: TextStyle(
-                  color: Colors.red.shade700,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 24),
-              ElevatedButton.icon(
-                onPressed: () => _fetchProducts(_currentLat, _currentLng),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 12,
-                  ),
-                ),
-                icon: const Icon(Icons.refresh, color: Colors.white),
-                label: const Text(
-                  'Retry',
-                  style: TextStyle(color: Colors.white, fontSize: 16),
-                ),
-              ),
-            ],
-          ),
-        ),
+      return _ErrorBody(
+        message: _errorMessage!,
+        onRetry: () => _fetchProducts(_currentLat, _currentLng),
       );
     }
 
     return RefreshIndicator(
       onRefresh: () => _fetchProducts(_currentLat, _currentLng),
-      color: Colors.green,
+      color: AppColors.brand,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
             const PromoBanner(),
-
+            QuickActionsRow(actions: _buildQuickActions()),
+            const CategorySection(),
+            if (_nearbyOutlets.isNotEmpty)
+              FeaturedProducts(
+                outlets: _nearbyOutlets,
+                onAddToCart: _handleAddToCart,
+              ),
+            const SizedBox(height: AppSpacing.xs),
             FilterAndRadiusBar(
               selectedFilter: _selectedFilter,
               onFilterChanged: (FilterOption filter) {
@@ -615,47 +632,14 @@ class _HomePageState extends State<HomePage> {
               },
               radius: _radius,
               onRadiusChanged: (double value) {
-                setState(() {
-                  _radius = value;
-                });
+                setState(() => _radius = value);
                 _fetchProducts(_currentLat, _currentLng);
               },
             ),
-
-            const CategorySection(),
-
-            // ✅ Display outlets directly (each outlet is independent)
+            const SizedBox(height: AppSpacing.xs),
+            _OutletsHeader(count: _nearbyOutlets.length),
             if (_nearbyOutlets.isEmpty)
-              Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(32.0),
-                  child: Column(
-                    children: <Widget>[
-                      Icon(
-                        Icons.shopping_bag_outlined,
-                        size: 64,
-                        color: Colors.grey.shade400,
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'No outlets available nearby',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.grey.shade600,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Try increasing the search radius',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey.shade500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              )
+              const _EmptyOutletsBody()
             else
               ..._nearbyOutlets.map((OutletProducts outlet) {
                 return VendorProductsSection(
@@ -667,10 +651,55 @@ class _HomePageState extends State<HomePage> {
                   onProductAdded: _handleAddToCart,
                 );
               }).toList(),
+            const SizedBox(height: AppSpacing.xl),
           ],
         ),
       ),
     );
+  }
+
+  List<QuickAction> _buildQuickActions() {
+    return <QuickAction>[
+      QuickAction(
+        label: 'Track',
+        icon: Icons.local_shipping_rounded,
+        tint: AppColors.green50,
+        accent: AppColors.green600,
+        onTap: () {
+          // No active order id known up front — push the order history
+          // page where the user can pick one. (route remains stable)
+          Navigator.pushNamed(context, Routes.orderHistory);
+        },
+      ),
+      QuickAction(
+        label: 'Orders',
+        icon: Icons.receipt_long_rounded,
+        tint: const Color(0xFFEFF6FF),
+        accent: AppColors.info,
+        onTap: () => Navigator.pushNamed(context, Routes.orderHistory),
+      ),
+      QuickAction(
+        label: 'Help',
+        icon: Icons.support_agent_rounded,
+        tint: const Color(0xFFFEF3C7),
+        accent: AppColors.warning,
+        onTap: () => Navigator.pushNamed(context, Routes.helpSupport),
+      ),
+      QuickAction(
+        label: 'Account',
+        icon: Icons.person_rounded,
+        tint: const Color(0xFFF5F3FF),
+        accent: const Color(0xFF7C3AED),
+        onTap: () {
+          if (_isGuest) {
+            _handleLogin();
+          } else {
+            Navigator.pushNamed(context, Routes.profile)
+                .then((_) => _fetchUserProfile());
+          }
+        },
+      ),
+    ];
   }
 }
 
@@ -680,4 +709,234 @@ class _HomePageState extends State<HomePage> {
 class CartException implements Exception {
   final String message;
   CartException(this.message);
+}
+
+// ============================================================================
+// Body states (private to the file)
+// ============================================================================
+class _LoadingBody extends StatelessWidget {
+  const _LoadingBody();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+      physics: const AlwaysScrollableScrollPhysics(),
+      children: const <Widget>[
+        _Skeleton(height: 150, margin: AppSpacing.md),
+        SizedBox(height: AppSpacing.sm),
+        Row(
+          children: <Widget>[
+            SizedBox(width: AppSpacing.md),
+            _Skeleton(width: 80, height: 80),
+            SizedBox(width: AppSpacing.xs),
+            _Skeleton(width: 80, height: 80),
+            SizedBox(width: AppSpacing.xs),
+            _Skeleton(width: 80, height: 80),
+            SizedBox(width: AppSpacing.xs),
+            _Skeleton(width: 80, height: 80),
+          ],
+        ),
+        SizedBox(height: AppSpacing.md),
+        _Skeleton(height: 100, margin: AppSpacing.md),
+        SizedBox(height: AppSpacing.md),
+        _Skeleton(height: 200, margin: AppSpacing.md),
+      ],
+    );
+  }
+}
+
+class _Skeleton extends StatelessWidget {
+  const _Skeleton({
+    this.width = double.infinity,
+    required this.height,
+    this.margin = 0,
+  });
+  final double width;
+  final double height;
+  final double margin;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width,
+      height: height,
+      margin: EdgeInsets.symmetric(horizontal: margin),
+      decoration: BoxDecoration(
+        color: AppColors.slate100,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+      ),
+    );
+  }
+}
+
+class _ErrorBody extends StatelessWidget {
+  const _ErrorBody({required this.message, required this.onRetry});
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: <Widget>[
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: AppColors.dangerSoft,
+                borderRadius: BorderRadius.circular(AppRadius.lg),
+              ),
+              child: const Icon(
+                Icons.cloud_off_rounded,
+                color: AppColors.danger,
+                size: 40,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            const Text(
+              'We couldn\'t reach the store',
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w800,
+                color: AppColors.slate900,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              message,
+              style: const TextStyle(
+                color: AppColors.slate500,
+                fontSize: 14,
+                height: 1.4,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: AppSpacing.md),
+            ElevatedButton.icon(
+              onPressed: onRetry,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.brand,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.lg,
+                  vertical: 12,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppRadius.sm),
+                ),
+              ),
+              icon: const Icon(Icons.refresh_rounded, size: 18),
+              label: const Text(
+                'Try again',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EmptyOutletsBody extends StatelessWidget {
+  const _EmptyOutletsBody();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: Column(
+          children: <Widget>[
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: AppColors.brandLight,
+                borderRadius: BorderRadius.circular(AppRadius.lg),
+              ),
+              child: const Icon(
+                Icons.storefront_rounded,
+                color: AppColors.brandDark,
+                size: 40,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            const Text(
+              'No outlets nearby',
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w800,
+                color: AppColors.slate900,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Try widening your search radius from the filter bar — or '
+              'browse by category above.',
+              style: TextStyle(
+                color: AppColors.slate500,
+                fontSize: 14,
+                height: 1.4,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _OutletsHeader extends StatelessWidget {
+  const _OutletsHeader({required this.count});
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.md,
+        AppSpacing.md,
+        AppSpacing.md,
+        AppSpacing.xs,
+      ),
+      child: Row(
+        children: <Widget>[
+          const Text(
+            'Outlets near you',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+              color: AppColors.slate900,
+              letterSpacing: -0.2,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+            decoration: BoxDecoration(
+              color: AppColors.slate100,
+              borderRadius: BorderRadius.circular(AppRadius.pill),
+            ),
+            child: Text(
+              '$count',
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                color: AppColors.slate600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

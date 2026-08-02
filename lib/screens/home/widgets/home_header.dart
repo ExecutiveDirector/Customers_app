@@ -1,9 +1,20 @@
+// lib/screens/home/widgets/home_header.dart
+//
+// Modern, slim home header for AquaGas.
+//
+// Layout (3 rows, vertically compressed, sticky-feel gradient):
+//   • Location row   [📍 current address ▾]                [bell with badge]
+//   • Greeting row   [Hi, {name} 👋]              [profile avatar]
+//   • Search row     [🔍 search products, gas, water...]
+//
+// The header is intentionally lighter than the previous one — no heavy
+// double gradient + box-shadow combo, no white inner card on white surface.
+// The location row replaces the static "Greeting / name" pair with the
+// thing the user actually wants to scan on first paint: where am I and
+// what's nearby.
 import 'package:flutter/material.dart';
 
-/// Slim, professional Home Header for AquaGas
-/// Layout:
-///   Row 1: [☰ menu]  [greeting + name]  [profile avatar]
-///   Row 2: [search bar]  [🔔 notification]
+import 'package:aquagas/theme/app_colors.dart';
 
 class HomeHeader extends StatefulWidget {
   final String? userName;
@@ -44,9 +55,9 @@ class _HomeHeaderState extends State<HomeHeader> {
 
   String _greeting() {
     final int hour = DateTime.now().hour;
-    if (hour < 12) return 'Good Morning';
-    if (hour < 18) return 'Good Afternoon';
-    return 'Good Evening';
+    if (hour < 12) return 'Good morning';
+    if (hour < 17) return 'Good afternoon';
+    return 'Good evening';
   }
 
   String _displayName() {
@@ -54,65 +65,131 @@ class _HomeHeaderState extends State<HomeHeader> {
     return (name != null && name.isNotEmpty) ? name : 'Guest';
   }
 
+  String _displayLocation() {
+    final loc = widget.locationLabel?.trim();
+    return (loc != null && loc.isNotEmpty) ? loc : 'Set your location';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.green.shade600,
-            Colors.green.shade800,
-          ],
+      decoration: const BoxDecoration(
+        gradient: AppColors.brandHeader,
+        borderRadius: BorderRadius.only(
+          bottomLeft: Radius.circular(AppRadius.xl),
+          bottomRight: Radius.circular(AppRadius.xl),
         ),
-        borderRadius: const BorderRadius.only(
-          bottomLeft: Radius.circular(24),
-          bottomRight: Radius.circular(24),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.green.withOpacity(0.3),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
       ),
       child: SafeArea(
         bottom: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.md,
+            AppSpacing.xs,
+            AppSpacing.md,
+            AppSpacing.md,
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
-            children: [
-              // ── Row 1: Menu | Greeting | Avatar ──────────────────
+            children: <Widget>[
+              // ── Row 1: Menu · Location · Bell ───────────────────
               Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  // Hamburger menu
-                  GestureDetector(
+                children: <Widget>[
+                  _IconCircle(
+                    icon: Icons.menu_rounded,
                     onTap: widget.onMenuTap,
-                    child: const Icon(
-                      Icons.menu,
-                      color: Colors.white,
-                      size: 26,
+                    tooltip: 'Menu',
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(AppRadius.sm),
+                      onTap: widget.onLocationTap,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          vertical: AppSpacing.xxs,
+                          horizontal: AppSpacing.xxs,
+                        ),
+                        child: Row(
+                          children: <Widget>[
+                            const Icon(
+                              Icons.location_on_rounded,
+                              color: Colors.white,
+                              size: 18,
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: <Widget>[
+                                  Text(
+                                    'Deliver to',
+                                    style: TextStyle(
+                                      color: Colors.white.withOpacity(0.85),
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w500,
+                                      letterSpacing: 0.2,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 1),
+                                  Row(
+                                    children: <Widget>[
+                                      Flexible(
+                                        child: Text(
+                                          _displayLocation(),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w700,
+                                            letterSpacing: 0.1,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 2),
+                                      const Icon(
+                                        Icons.keyboard_arrow_down_rounded,
+                                        color: Colors.white,
+                                        size: 18,
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
+                  const SizedBox(width: AppSpacing.xs),
+                  _NotificationBell(
+                    count: widget.notificationCount,
+                    onTap: widget.onNotificationsTap,
+                  ),
+                ],
+              ),
 
-                  const SizedBox(width: 14),
+              const SizedBox(height: AppSpacing.sm),
 
-                  // Greeting + name
+              // ── Row 2: Greeting + Avatar ────────────────────────
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: <Widget>[
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
-                      children: [
+                      children: <Widget>[
                         Text(
-                          _greeting(),
+                          '${_greeting()},',
                           style: TextStyle(
-                            color: Colors.white.withOpacity(0.8),
-                            fontSize: 12,
-                            fontWeight: FontWeight.w400,
+                            color: Colors.white.withOpacity(0.85),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
                           ),
                         ),
                         const SizedBox(height: 1),
@@ -122,158 +199,36 @@ class _HomeHeaderState extends State<HomeHeader> {
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
                             color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 0.2,
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.3,
                           ),
                         ),
                       ],
                     ),
                   ),
-
-                  const SizedBox(width: 12),
-
-                  // Profile avatar
-                  GestureDetector(
+                  const SizedBox(width: AppSpacing.sm),
+                  _ProfileAvatar(
+                    avatarUrl: widget.avatarUrl,
+                    name: _displayName(),
                     onTap: widget.onProfileTap,
-                    child: Container(
-                      width: 38,
-                      height: 38,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: Colors.white.withOpacity(0.6),
-                          width: 2,
-                        ),
-                        color: Colors.white.withOpacity(0.15),
-                      ),
-                      child: ClipOval(
-                        child: widget.avatarUrl != null
-                            ? Image.network(
-                                widget.avatarUrl!,
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) =>
-                                    _buildInitialAvatar(),
-                              )
-                            : _buildInitialAvatar(),
-                      ),
-                    ),
                   ),
                 ],
               ),
 
-              const SizedBox(height: 14),
+              const SizedBox(height: AppSpacing.sm),
 
-              // ── Row 2: Search bar | Notification ─────────────────
-              Row(
-                children: [
-                  // Search bar
-                  Expanded(
-                    child: SizedBox(
-                      height: 42,
-                      child: TextField(
-                        controller: _searchController,
-                        onSubmitted: (v) => widget.onSearch?.call(v.trim()),
-                        onChanged: (_) => setState(() {}),
-                        style: const TextStyle(fontSize: 13),
-                        decoration: InputDecoration(
-                          hintText: 'Search gas, water & products...',
-                          hintStyle: TextStyle(
-                            color: Colors.grey.shade500,
-                            fontSize: 13,
-                          ),
-                          filled: true,
-                          fillColor: Colors.white,
-                          contentPadding: const EdgeInsets.symmetric(
-                            vertical: 0,
-                            horizontal: 12,
-                          ),
-                          prefixIcon: Icon(
-                            Icons.search,
-                            color: Colors.green.shade700,
-                            size: 20,
-                          ),
-                          suffixIcon: _searchController.text.isNotEmpty
-                              ? GestureDetector(
-                                  onTap: () {
-                                    _searchController.clear();
-                                    widget.onSearch?.call('');
-                                    setState(() {});
-                                  },
-                                  child: Icon(
-                                    Icons.close,
-                                    color: Colors.grey.shade500,
-                                    size: 18,
-                                  ),
-                                )
-                              : null,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide.none,
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide.none,
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(
-                              color: Colors.green.shade400,
-                              width: 1.5,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(width: 10),
-
-                  // Notification bell
-                  GestureDetector(
-                    onTap: widget.onNotificationsTap,
-                    child: Container(
-                      width: 42,
-                      height: 42,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: Colors.white.withOpacity(0.25),
-                          width: 1,
-                        ),
-                      ),
-                      child: Stack(
-                        clipBehavior: Clip.none,
-                        alignment: Alignment.center,
-                        children: [
-                          const Icon(
-                            Icons.notifications_outlined,
-                            color: Colors.white,
-                            size: 22,
-                          ),
-                          if (widget.notificationCount > 0)
-                            Positioned(
-                              top: 6,
-                              right: 6,
-                              child: Container(
-                                width: 8,
-                                height: 8,
-                                decoration: BoxDecoration(
-                                  color: Colors.red.shade500,
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: Colors.white,
-                                    width: 1.2,
-                                  ),
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
+              // ── Row 3: Search ───────────────────────────────────
+              _SearchField(
+                controller: _searchController,
+                onChanged: (String v) => setState(() {}),
+                onSubmitted: (String v) =>
+                    widget.onSearch?.call(v.trim()),
+                onClear: () {
+                  _searchController.clear();
+                  widget.onSearch?.call('');
+                  setState(() {});
+                },
               ),
             ],
           ),
@@ -281,15 +236,226 @@ class _HomeHeaderState extends State<HomeHeader> {
       ),
     );
   }
+}
 
-  Widget _buildInitialAvatar() {
-    return Center(
+// ─── Sub-widgets (kept private to the header) ─────────────────────────────
+
+class _IconCircle extends StatelessWidget {
+  const _IconCircle({
+    required this.icon,
+    required this.onTap,
+    this.tooltip,
+  });
+
+  final IconData icon;
+  final VoidCallback? onTap;
+  final String? tooltip;
+
+  @override
+  Widget build(BuildContext context) {
+    final Widget btn = Material(
+      color: Colors.white.withOpacity(0.18),
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: SizedBox(
+          width: 38,
+          height: 38,
+          child: Icon(icon, color: Colors.white, size: 20),
+        ),
+      ),
+    );
+    return tooltip == null ? btn : Tooltip(message: tooltip!, child: btn);
+  }
+}
+
+class _NotificationBell extends StatelessWidget {
+  const _NotificationBell({required this.count, required this.onTap});
+  final int count;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      clipBehavior: Clip.none,
+      alignment: Alignment.center,
+      children: <Widget>[
+        _IconCircle(
+          icon: Icons.notifications_none_rounded,
+          onTap: onTap,
+        ),
+        if (count > 0)
+          Positioned(
+            top: 2,
+            right: 2,
+            child: Container(
+              constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              decoration: BoxDecoration(
+                color: AppColors.danger,
+                borderRadius: BorderRadius.circular(AppRadius.pill),
+                border: Border.all(color: AppColors.brandDark, width: 1.5),
+              ),
+              child: Center(
+                child: Text(
+                  count > 9 ? '9+' : '$count',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w800,
+                    height: 1.1,
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _ProfileAvatar extends StatelessWidget {
+  const _ProfileAvatar({
+    required this.avatarUrl,
+    required this.name,
+    required this.onTap,
+  });
+
+  final String? avatarUrl;
+  final String name;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: Colors.white.withOpacity(0.7),
+              width: 2,
+            ),
+            color: Colors.white,
+          ),
+          child: ClipOval(
+            child: (avatarUrl != null && avatarUrl!.isNotEmpty)
+                ? Image.network(
+                    avatarUrl!,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => _Initial(name: name),
+                  )
+                : _Initial(name: name),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _Initial extends StatelessWidget {
+  const _Initial({required this.name});
+  final String name;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      alignment: Alignment.center,
+      decoration: const BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: AppColors.brandHeader,
+      ),
       child: Text(
-        _displayName()[0].toUpperCase(),
-        style: TextStyle(
-          color: Colors.green.shade700,
-          fontWeight: FontWeight.bold,
-          fontSize: 15,
+        name.isNotEmpty ? name[0].toUpperCase() : '?',
+        style: const TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.w800,
+          fontSize: 16,
+          letterSpacing: 0.2,
+        ),
+      ),
+    );
+  }
+}
+
+class _SearchField extends StatelessWidget {
+  const _SearchField({
+    required this.controller,
+    required this.onChanged,
+    required this.onSubmitted,
+    required this.onClear,
+  });
+
+  final TextEditingController controller;
+  final ValueChanged<String> onChanged;
+  final ValueChanged<String> onSubmitted;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 46,
+      child: TextField(
+        controller: controller,
+        onChanged: onChanged,
+        onSubmitted: onSubmitted,
+        textInputAction: TextInputAction.search,
+        style: const TextStyle(fontSize: 14, color: AppColors.slate800),
+        decoration: InputDecoration(
+          hintText: 'Search gas, water & accessories...',
+          hintStyle: const TextStyle(
+            color: AppColors.slate400,
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+          ),
+          filled: true,
+          fillColor: Colors.white,
+          contentPadding: const EdgeInsets.symmetric(
+            vertical: 0,
+            horizontal: AppSpacing.md,
+          ),
+          prefixIcon: const Icon(
+            Icons.search_rounded,
+            color: AppColors.brandDark,
+            size: 22,
+          ),
+          suffixIcon: ValueListenableBuilder<TextEditingValue>(
+            valueListenable: controller,
+            builder: (BuildContext context, TextEditingValue value, _) {
+              if (value.text.isEmpty) return const SizedBox.shrink();
+              return IconButton(
+                splashRadius: 18,
+                icon: const Icon(
+                  Icons.close_rounded,
+                  color: AppColors.slate500,
+                  size: 18,
+                ),
+                onPressed: onClear,
+              );
+            },
+          ),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(AppRadius.md),
+            borderSide: BorderSide.none,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(AppRadius.md),
+            borderSide: BorderSide.none,
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(AppRadius.md),
+            borderSide: const BorderSide(
+              color: Colors.white,
+              width: 1.5,
+            ),
+          ),
         ),
       ),
     );
