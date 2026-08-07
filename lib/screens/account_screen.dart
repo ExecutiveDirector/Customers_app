@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:aquagas/services/account_service.dart';
 
 class AccountPage extends StatefulWidget {
   const AccountPage({Key? key}) : super(key: key);
@@ -10,20 +11,19 @@ class AccountPage extends StatefulWidget {
 class _AccountPageState extends State<AccountPage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-
-  // Mock user data - Replace with actual data from your backend
-  final String userName = "John Doe";
-  final int loyaltyPoints = 2450;
-  final double walletBalance = 5420.50;
-  final double pendingBalance = 250.00;
-  final bool isPremium = true;
-  final int totalOrders = 45;
-  final double totalSpent = 125340.00;
+  final AccountService _accountService = AccountService();
+  AccountSummary? _accountSummary;
+  List<WalletTransactionItem> _walletTransactions = [];
+  List<LoyaltyTransactionItem> _loyaltyTransactions = [];
+  List<LoyaltyReward> _loyaltyRewards = [];
+  bool _isLoading = true;
+  String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    _loadAccountData();
   }
 
   @override
@@ -31,6 +31,71 @@ class _AccountPageState extends State<AccountPage>
     _tabController.dispose();
     super.dispose();
   }
+
+  Future<void> _loadAccountData() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final AccountSummary accountSummary = await _accountService.getAccountSummary();
+      final List<WalletTransactionItem> walletTransactions =
+          await _accountService.getWalletTransactions();
+      final List<LoyaltyTransactionItem> loyaltyTransactions =
+          await _accountService.getLoyaltyHistory();
+      final List<LoyaltyReward> loyaltyRewards =
+          await _accountService.getLoyaltyRewards();
+
+      if (!mounted) return;
+      setState(() {
+        _accountSummary = accountSummary;
+        _walletTransactions = walletTransactions;
+        _loyaltyTransactions = loyaltyTransactions;
+        _loyaltyRewards = loyaltyRewards;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = e.toString();
+        _isLoading = false;
+      });
+    }
+  }
+
+  Widget _buildErrorView() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              _errorMessage ?? 'Unable to load account data.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 16, color: Colors.black87),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _loadAccountData,
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String get _userName => _accountSummary?.fullName ?? 'Customer';
+  bool get _isPremium => _accountSummary?.isPremium ?? false;
+  int get _loyaltyPoints => _accountSummary?.loyaltyPoints ?? 0;
+  double get _walletBalance => _accountSummary?.walletBalance ?? 0;
+  double get _pendingBalance => _accountSummary?.pendingBalance ?? 0;
+  int get _totalOrders => _accountSummary?.totalOrders ?? 0;
+  double get _walletTotalEarned => _accountSummary?.walletTotalEarned ?? 0;
+  double get _walletTotalSpent => _accountSummary?.walletTotalSpent ?? 0;
+  double get _totalSpent => _accountSummary?.totalSpent ?? 0;
 
   String formatCurrency(double amount) {
     return 'KES ${amount.toStringAsFixed(2).replaceAllMapped(
@@ -73,38 +138,42 @@ class _AccountPageState extends State<AccountPage>
           ),
         ),
         child: SafeArea(
-          child: Column(
-            children: [
-              _buildHeader(),
-              _buildQuickStats(),
-              Expanded(
-                child: Container(
-                  decoration: const BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(24),
-                      topRight: Radius.circular(24),
-                    ),
-                  ),
-                  child: Column(
-                    children: [
-                      _buildTabBar(),
-                      Expanded(
-                        child: TabBarView(
-                          controller: _tabController,
-                          children: [
-                            _buildLoyaltyTab(),
-                            _buildSubscriptionTab(),
-                            _buildWalletTab(),
-                          ],
+          child: _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : _errorMessage != null
+                  ? _buildErrorView()
+                  : Column(
+                      children: [
+                        _buildHeader(),
+                        _buildQuickStats(),
+                        Expanded(
+                          child: Container(
+                            decoration: const BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.only(
+                                topLeft: Radius.circular(24),
+                                topRight: Radius.circular(24),
+                              ),
+                            ),
+                            child: Column(
+                              children: [
+                                _buildTabBar(),
+                                Expanded(
+                                  child: TabBarView(
+                                    controller: _tabController,
+                                    children: [
+                                      _buildLoyaltyTab(),
+                                      _buildSubscriptionTab(),
+                                      _buildWalletTab(),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
+                      ],
+                    ),
         ),
       ),
     );
@@ -129,7 +198,7 @@ class _AccountPageState extends State<AccountPage>
               ),
               const SizedBox(height: 4),
               Text(
-                'Welcome back, $userName!',
+                'Welcome back, $_userName!',
                 style: TextStyle(
                   fontSize: 16,
                   color: Colors.grey.shade700,
@@ -137,7 +206,7 @@ class _AccountPageState extends State<AccountPage>
               ),
             ],
           ),
-          if (isPremium)
+          if (_isPremium)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
@@ -173,7 +242,7 @@ class _AccountPageState extends State<AccountPage>
           Expanded(
             child: _buildStatCard(
               'Loyalty Points',
-              loyaltyPoints.toString(),
+              _loyaltyPoints.toString(),
               Icons.card_giftcard,
               Colors.purple,
             ),
@@ -182,7 +251,7 @@ class _AccountPageState extends State<AccountPage>
           Expanded(
             child: _buildStatCard(
               'Wallet Balance',
-              formatCurrency(walletBalance),
+              formatCurrency(_walletBalance),
               Icons.account_balance_wallet,
               Colors.green,
             ),
@@ -191,7 +260,7 @@ class _AccountPageState extends State<AccountPage>
           Expanded(
             child: _buildStatCard(
               'Total Orders',
-              totalOrders.toString(),
+              _totalOrders.toString(),
               Icons.shopping_bag,
               Colors.blue,
             ),
@@ -295,65 +364,6 @@ class _AccountPageState extends State<AccountPage>
   }
 
   Widget _buildLoyaltyTab() {
-    final loyaltyTransactions = [
-      {
-        'type': 'earned',
-        'points': 150,
-        'description': 'Order #ORD-2024-1234',
-        'date': DateTime(2024, 11, 5),
-        'balance': 2450
-      },
-      {
-        'type': 'redeemed',
-        'points': -500,
-        'description': 'Redeemed for 10% discount',
-        'date': DateTime(2024, 11, 3),
-        'balance': 2300
-      },
-      {
-        'type': 'bonus',
-        'points': 200,
-        'description': 'Referral bonus',
-        'date': DateTime(2024, 11, 1),
-        'balance': 2800
-      },
-      {
-        'type': 'earned',
-        'points': 85,
-        'description': 'Order #ORD-2024-1189',
-        'date': DateTime(2024, 10, 28),
-        'balance': 2600
-      },
-    ];
-
-    final rewards = [
-      {
-        'name': '10% Discount',
-        'type': 'discount',
-        'points': 500,
-        'value': 10.0
-      },
-      {
-        'name': 'Free Delivery',
-        'type': 'delivery',
-        'points': 300,
-        'value': 200.0
-      },
-      {'name': 'KES 500 Off', 'type': 'fixed', 'points': 1000, 'value': 500.0},
-      {
-        'name': '20% Discount',
-        'type': 'discount',
-        'points': 1500,
-        'value': 20.0
-      },
-      {
-        'name': 'KES 1000 Cashback',
-        'type': 'cashback',
-        'points': 2000,
-        'value': 1000.0
-      },
-    ];
-
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -424,7 +434,7 @@ class _AccountPageState extends State<AccountPage>
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            loyaltyPoints.toString(),
+                            _loyaltyPoints.toString(),
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 28,
@@ -492,10 +502,10 @@ class _AccountPageState extends State<AccountPage>
             mainAxisSpacing: 12,
             childAspectRatio: 0.85,
           ),
-          itemCount: rewards.length,
+          itemCount: _loyaltyRewards.length,
           itemBuilder: (context, index) {
-            final reward = rewards[index];
-            final canRedeem = loyaltyPoints >= (reward['points'] as int);
+            final reward = _loyaltyRewards[index];
+            final canRedeem = _loyaltyPoints >= reward.pointsRequired;
 
             return Container(
               padding: const EdgeInsets.all(16),
@@ -540,7 +550,7 @@ class _AccountPageState extends State<AccountPage>
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
-                          '${reward['points']} pts',
+                          '${reward.pointsRequired} pts',
                           style: const TextStyle(
                             color: Colors.purple,
                             fontSize: 11,
@@ -552,7 +562,7 @@ class _AccountPageState extends State<AccountPage>
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    reward['name'] as String,
+                    reward.name,
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 15,
@@ -563,7 +573,7 @@ class _AccountPageState extends State<AccountPage>
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    _getRewardDescription(reward),
+                    reward.description,
                     style: TextStyle(
                       color: Colors.grey.shade600,
                       fontSize: 12,
@@ -624,14 +634,14 @@ class _AccountPageState extends State<AccountPage>
           child: ListView.separated(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            itemCount: loyaltyTransactions.length,
+            itemCount: _loyaltyTransactions.length,
             separatorBuilder: (context, index) => Divider(
               height: 1,
               color: Colors.grey.shade200,
             ),
             itemBuilder: (context, index) {
-              final transaction = loyaltyTransactions[index];
-              final points = transaction['points'] as int;
+              final transaction = _loyaltyTransactions[index];
+              final points = transaction.points;
               final isPositive = points > 0;
 
               return Padding(
@@ -656,7 +666,7 @@ class _AccountPageState extends State<AccountPage>
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            transaction['description'] as String,
+                            transaction.description ?? '',
                             style: const TextStyle(
                               fontWeight: FontWeight.w600,
                               fontSize: 14,
@@ -664,7 +674,7 @@ class _AccountPageState extends State<AccountPage>
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            formatDate(transaction['date'] as DateTime),
+                            formatDate(transaction.createdAt),
                             style: TextStyle(
                               color: Colors.grey.shade600,
                               fontSize: 12,
@@ -685,7 +695,7 @@ class _AccountPageState extends State<AccountPage>
                           ),
                         ),
                         Text(
-                          'Balance: ${transaction['balance']}',
+                          'Balance: ${transaction.newBalance}',
                           style: TextStyle(
                             color: Colors.grey.shade600,
                             fontSize: 11,
@@ -991,38 +1001,8 @@ class _AccountPageState extends State<AccountPage>
   }
 
   Widget _buildWalletTab() {
-    final walletTransactions = [
-      {
-        'type': 'credit',
-        'amount': 1000.0,
-        'description': 'Top-up via M-Pesa',
-        'date': DateTime(2024, 11, 5),
-        'balance': 5420.50
-      },
-      {
-        'type': 'debit',
-        'amount': -350.0,
-        'description': 'Order #ORD-2024-1234',
-        'date': DateTime(2024, 11, 5),
-        'balance': 4420.50
-      },
-      {
-        'type': 'credit',
-        'amount': 500.0,
-        'description': 'Refund for cancelled order',
-        'date': DateTime(2024, 11, 3),
-        'balance': 4770.50
-      },
-      {
-        'type': 'debit',
-        'amount': -280.0,
-        'description': 'Order #ORD-2024-1189',
-        'date': DateTime(2024, 10, 28),
-        'balance': 4270.50
-      },
-    ];
-
     return ListView(
+      padding: const EdgeInsets.all(16),
       padding: const EdgeInsets.all(16),
       children: [
         // Wallet Balance
@@ -1063,7 +1043,7 @@ class _AccountPageState extends State<AccountPage>
                 ],
               ),
               Text(
-                formatCurrency(walletBalance),
+                formatCurrency(_walletBalance),
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 36,
@@ -1072,7 +1052,7 @@ class _AccountPageState extends State<AccountPage>
               ),
               const SizedBox(height: 8),
               Text(
-                'Pending: ${formatCurrency(pendingBalance)}',
+                'Pending: ${formatCurrency(_pendingBalance)}',
                 style: const TextStyle(
                   color: Colors.white70,
                   fontSize: 14,
@@ -1163,7 +1143,7 @@ class _AccountPageState extends State<AccountPage>
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      formatCurrency(15450.00),
+                      formatCurrency(_walletTotalEarned),
                       style: const TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
@@ -1212,7 +1192,7 @@ class _AccountPageState extends State<AccountPage>
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      formatCurrency(10029.50),
+                      formatCurrency(_walletTotalSpent),
                       style: const TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
@@ -1246,14 +1226,14 @@ class _AccountPageState extends State<AccountPage>
           child: ListView.separated(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            itemCount: walletTransactions.length,
+            itemCount: _walletTransactions.length,
             separatorBuilder: (context, index) => Divider(
               height: 1,
               color: Colors.grey.shade200,
             ),
             itemBuilder: (context, index) {
-              final transaction = walletTransactions[index];
-              final amount = transaction['amount'] as double;
+              final transaction = _walletTransactions[index];
+              final amount = transaction.amount;
               final isCredit = amount > 0;
 
               return Padding(
@@ -1280,7 +1260,7 @@ class _AccountPageState extends State<AccountPage>
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            transaction['description'] as String,
+                            transaction.description ?? '',
                             style: const TextStyle(
                               fontWeight: FontWeight.w600,
                               fontSize: 14,
@@ -1288,7 +1268,7 @@ class _AccountPageState extends State<AccountPage>
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            formatDate(transaction['date'] as DateTime),
+                            formatDate(transaction.createdAt),
                             style: TextStyle(
                               color: Colors.grey.shade600,
                               fontSize: 12,
@@ -1309,7 +1289,7 @@ class _AccountPageState extends State<AccountPage>
                           ),
                         ),
                         Text(
-                          'Balance: ${formatCurrency(transaction['balance'] as double)}',
+                          'Balance: ${formatCurrency(transaction.newBalance)}',
                           style: TextStyle(
                             color: Colors.grey.shade600,
                             fontSize: 11,
@@ -1327,18 +1307,23 @@ class _AccountPageState extends State<AccountPage>
     );
   }
 
-  String _getRewardDescription(Map<String, dynamic> reward) {
-    switch (reward['type']) {
+  String _getRewardDescription(LoyaltyReward reward) {
+    switch (reward.type) {
+      case 'discount_percentage':
       case 'discount':
-        return 'Save ${reward['value']}% on your order';
+        return 'Save ${reward.value?.toStringAsFixed(0) ?? ''}% on your order';
+      case 'discount_fixed':
       case 'fixed':
-        return 'Save ${formatCurrency(reward['value'] as double)}';
+        return 'Save ${formatCurrency(reward.value ?? 0)}';
+      case 'free_delivery':
       case 'delivery':
         return 'Free delivery on your next order';
       case 'cashback':
-        return 'Get ${formatCurrency(reward['value'] as double)} back';
+        return 'Get ${formatCurrency(reward.value ?? 0)} back';
+      case 'free_product':
+        return 'A free product on your next order';
       default:
-        return 'Special reward';
+        return reward.description;
     }
   }
 }
