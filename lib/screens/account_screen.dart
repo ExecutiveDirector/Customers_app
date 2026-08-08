@@ -38,6 +38,7 @@ class _AccountPageState extends State<AccountPage> {
   List<WalletTransactionItem> _walletTxns = <WalletTransactionItem>[];
   List<LoyaltyTransactionItem> _loyaltyTxns = <LoyaltyTransactionItem>[];
   List<LoyaltyReward> _rewards = <LoyaltyReward>[];
+  ReferralSummary? _referralSummary;
 
   final Set<int> _redeemingRewardIds = <int>{};
 
@@ -45,6 +46,14 @@ class _AccountPageState extends State<AccountPage> {
   void initState() {
     super.initState();
     _load();
+  }
+
+  Future<ReferralSummary?> _getReferralSummaryOrNull() async {
+    try {
+      return await _service.getReferralSummary();
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<void> _load() async {
@@ -58,6 +67,7 @@ class _AccountPageState extends State<AccountPage> {
         _service.getWalletTransactions().catchError((_) => <WalletTransactionItem>[]),
         _service.getLoyaltyHistory().catchError((_) => <LoyaltyTransactionItem>[]),
         _service.getLoyaltyRewards().catchError((_) => <LoyaltyReward>[]),
+        _getReferralSummaryOrNull(),
       ]);
       if (!mounted) return;
       setState(() {
@@ -65,6 +75,7 @@ class _AccountPageState extends State<AccountPage> {
         _walletTxns = results[1] as List<WalletTransactionItem>;
         _loyaltyTxns = results[2] as List<LoyaltyTransactionItem>;
         _rewards = results[3] as List<LoyaltyReward>;
+        _referralSummary = results[4] as ReferralSummary?;
         _isLoading = false;
       });
     } catch (e) {
@@ -162,6 +173,16 @@ class _AccountPageState extends State<AccountPage> {
     Clipboard.setData(ClipboardData(text: code));
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Referral code copied')),
+    );
+  }
+
+  void _shareReferralCode(ReferralSummary r) {
+    final String message =
+        'Get LPG delivered fast with AquaGas! Use my referral code ${r.referralCode} '
+        'when you sign up and we both earn bonus points.';
+    Clipboard.setData(ClipboardData(text: message));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Referral message copied — paste it anywhere to share')),
     );
   }
 
@@ -264,6 +285,10 @@ class _AccountPageState extends State<AccountPage> {
           _buildWalletCard(summary),
           const SizedBox(height: AppSpacing.lg),
           _buildLoyaltySection(summary),
+          if (_referralSummary != null) ...<Widget>[
+            const SizedBox(height: AppSpacing.lg),
+            _buildReferralSection(_referralSummary!),
+          ],
         ],
       ),
     );
@@ -671,6 +696,136 @@ class _AccountPageState extends State<AccountPage> {
       ],
     );
   }
+
+  // ── Referrals ─────────────────────────────────────────────────────────
+
+  Widget _buildReferralSection(ReferralSummary r) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        const Text('Refer & Earn',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.slate900)),
+        const SizedBox(height: AppSpacing.sm),
+        Container(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          decoration: BoxDecoration(
+            gradient: AppColors.brandHeader,
+            borderRadius: BorderRadius.circular(AppRadius.lg),
+            boxShadow: AppColors.headerShadow,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                'Give ${r.refereeRewardPoints} pts, Get ${r.referrerRewardPoints} pts',
+                style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Share your code. Your friend gets bonus points on signup, '
+                'you get rewarded when they place their first order.',
+                style: TextStyle(color: Colors.white70, fontSize: 12),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                ),
+                child: Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: Text(
+                        r.referralCode.isEmpty ? '—' : r.referralCode,
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.slate900,
+                          letterSpacing: 2,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => _copyReferralCode(r.referralCode),
+                      icon: const Icon(Icons.copy_rounded, color: AppColors.brand, size: 20),
+                      tooltip: 'Copy code',
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    IconButton(
+                      onPressed: () => _shareReferralCode(r),
+                      icon: const Icon(Icons.share_rounded, color: AppColors.brand, size: 20),
+                      tooltip: 'Share',
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Row(
+          children: <Widget>[
+            Expanded(
+              child: _StatTile(
+                icon: Icons.people_alt_rounded,
+                color: AppColors.info,
+                label: 'Referred',
+                value: '${r.totalReferred}',
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: _StatTile(
+                icon: Icons.hourglass_top_rounded,
+                color: AppColors.warning,
+                label: 'Pending',
+                value: '${r.pendingCount}',
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: _StatTile(
+                icon: Icons.emoji_events_rounded,
+                color: AppColors.success,
+                label: 'Points Earned',
+                value: '${r.pointsEarnedFromReferrals}',
+              ),
+            ),
+          ],
+        ),
+        if (r.referrals.isNotEmpty) ...<Widget>[
+          const SizedBox(height: AppSpacing.md),
+          const Text('Your Referrals',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.slate900)),
+          const SizedBox(height: AppSpacing.xs),
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(AppRadius.lg),
+              boxShadow: AppColors.cardShadow,
+            ),
+            child: Column(
+              children: <Widget>[
+                for (final ReferralItem item in r.referrals.take(6)) _ReferralRow(item: item, formatDate: _formatDate),
+              ],
+            ),
+          ),
+        ] else
+          Padding(
+            padding: const EdgeInsets.only(top: AppSpacing.sm),
+            child: Text(
+              'No referrals yet — share your code to start earning.',
+              style: TextStyle(fontSize: 12.5, color: AppColors.slate500),
+            ),
+          ),
+      ],
+    );
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -918,6 +1073,82 @@ class _RewardCard extends StatelessWidget {
                   ? const SizedBox(
                       width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                   : Text(canRedeem ? 'Redeem' : 'Locked', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReferralRow extends StatelessWidget {
+  final ReferralItem item;
+  final String Function(DateTime) formatDate;
+
+  const _ReferralRow({required this.item, required this.formatDate});
+
+  Color get _statusColor {
+    switch (item.status) {
+      case 'rewarded':
+        return AppColors.success;
+      case 'expired':
+        return AppColors.danger;
+      case 'qualified':
+        return AppColors.info;
+      default:
+        return AppColors.warning;
+    }
+  }
+
+  String get _statusLabel {
+    switch (item.status) {
+      case 'rewarded':
+        return 'Rewarded';
+      case 'expired':
+        return 'Expired';
+      case 'qualified':
+        return 'Qualified';
+      default:
+        return 'Pending';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 10),
+      child: Row(
+        children: <Widget>[
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(color: AppColors.slate100, shape: BoxShape.circle),
+            child: const Icon(Icons.person_rounded, color: AppColors.slate500, size: 18),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  item.refereeName,
+                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppColors.slate800),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(formatDate(item.referredAt), style: const TextStyle(fontSize: 10.5, color: AppColors.slate500)),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: _statusColor.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(AppRadius.pill),
+            ),
+            child: Text(
+              _statusLabel,
+              style: TextStyle(color: _statusColor, fontSize: 10.5, fontWeight: FontWeight.bold),
             ),
           ),
         ],

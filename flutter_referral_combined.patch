@@ -1,0 +1,495 @@
+diff -ruN '--exclude=node_modules' recon_app/lib/screens/account_screen.dart edit_app/app/lib/screens/account_screen.dart
+--- a/lib/screens/account_screen.dart	2026-08-08 07:45:17.554235802 +0000
++++ b/lib/screens/account_screen.dart	2026-08-08 07:38:52.083660850 +0000
+@@ -38,6 +38,7 @@
+   List<WalletTransactionItem> _walletTxns = <WalletTransactionItem>[];
+   List<LoyaltyTransactionItem> _loyaltyTxns = <LoyaltyTransactionItem>[];
+   List<LoyaltyReward> _rewards = <LoyaltyReward>[];
++  ReferralSummary? _referralSummary;
+ 
+   final Set<int> _redeemingRewardIds = <int>{};
+ 
+@@ -47,6 +48,14 @@
+     _load();
+   }
+ 
++  Future<ReferralSummary?> _getReferralSummaryOrNull() async {
++    try {
++      return await _service.getReferralSummary();
++    } catch (_) {
++      return null;
++    }
++  }
++
+   Future<void> _load() async {
+     setState(() {
+       _isLoading = true;
+@@ -58,6 +67,7 @@
+         _service.getWalletTransactions().catchError((_) => <WalletTransactionItem>[]),
+         _service.getLoyaltyHistory().catchError((_) => <LoyaltyTransactionItem>[]),
+         _service.getLoyaltyRewards().catchError((_) => <LoyaltyReward>[]),
++        _getReferralSummaryOrNull(),
+       ]);
+       if (!mounted) return;
+       setState(() {
+@@ -65,6 +75,7 @@
+         _walletTxns = results[1] as List<WalletTransactionItem>;
+         _loyaltyTxns = results[2] as List<LoyaltyTransactionItem>;
+         _rewards = results[3] as List<LoyaltyReward>;
++        _referralSummary = results[4] as ReferralSummary?;
+         _isLoading = false;
+       });
+     } catch (e) {
+@@ -165,6 +176,16 @@
+     );
+   }
+ 
++  void _shareReferralCode(ReferralSummary r) {
++    final String message =
++        'Get LPG delivered fast with AquaGas! Use my referral code ${r.referralCode} '
++        'when you sign up and we both earn bonus points.';
++    Clipboard.setData(ClipboardData(text: message));
++    ScaffoldMessenger.of(context).showSnackBar(
++      const SnackBar(content: Text('Referral message copied — paste it anywhere to share')),
++    );
++  }
++
+   void _showAllTransactions({
+     required String title,
+     required List<Widget> items,
+@@ -264,6 +285,10 @@
+           _buildWalletCard(summary),
+           const SizedBox(height: AppSpacing.lg),
+           _buildLoyaltySection(summary),
++          if (_referralSummary != null) ...<Widget>[
++            const SizedBox(height: AppSpacing.lg),
++            _buildReferralSection(_referralSummary!),
++          ],
+         ],
+       ),
+     );
+@@ -671,6 +696,136 @@
+       ],
+     );
+   }
++
++  // ── Referrals ─────────────────────────────────────────────────────────
++
++  Widget _buildReferralSection(ReferralSummary r) {
++    return Column(
++      crossAxisAlignment: CrossAxisAlignment.start,
++      children: <Widget>[
++        const Text('Refer & Earn',
++            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.slate900)),
++        const SizedBox(height: AppSpacing.sm),
++        Container(
++          padding: const EdgeInsets.all(AppSpacing.md),
++          decoration: BoxDecoration(
++            gradient: AppColors.brandHeader,
++            borderRadius: BorderRadius.circular(AppRadius.lg),
++            boxShadow: AppColors.headerShadow,
++          ),
++          child: Column(
++            crossAxisAlignment: CrossAxisAlignment.start,
++            children: <Widget>[
++              Text(
++                'Give ${r.refereeRewardPoints} pts, Get ${r.referrerRewardPoints} pts',
++                style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
++              ),
++              const SizedBox(height: 4),
++              const Text(
++                'Share your code. Your friend gets bonus points on signup, '
++                'you get rewarded when they place their first order.',
++                style: TextStyle(color: Colors.white70, fontSize: 12),
++              ),
++              const SizedBox(height: AppSpacing.md),
++              Container(
++                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 12),
++                decoration: BoxDecoration(
++                  color: Colors.white,
++                  borderRadius: BorderRadius.circular(AppRadius.md),
++                ),
++                child: Row(
++                  children: <Widget>[
++                    Expanded(
++                      child: Text(
++                        r.referralCode.isEmpty ? '—' : r.referralCode,
++                        style: const TextStyle(
++                          fontSize: 20,
++                          fontWeight: FontWeight.bold,
++                          color: AppColors.slate900,
++                          letterSpacing: 2,
++                        ),
++                      ),
++                    ),
++                    IconButton(
++                      onPressed: () => _copyReferralCode(r.referralCode),
++                      icon: const Icon(Icons.copy_rounded, color: AppColors.brand, size: 20),
++                      tooltip: 'Copy code',
++                      padding: EdgeInsets.zero,
++                      constraints: const BoxConstraints(),
++                    ),
++                    const SizedBox(width: AppSpacing.sm),
++                    IconButton(
++                      onPressed: () => _shareReferralCode(r),
++                      icon: const Icon(Icons.share_rounded, color: AppColors.brand, size: 20),
++                      tooltip: 'Share',
++                      padding: EdgeInsets.zero,
++                      constraints: const BoxConstraints(),
++                    ),
++                  ],
++                ),
++              ),
++            ],
++          ),
++        ),
++        const SizedBox(height: AppSpacing.sm),
++        Row(
++          children: <Widget>[
++            Expanded(
++              child: _StatTile(
++                icon: Icons.people_alt_rounded,
++                color: AppColors.info,
++                label: 'Referred',
++                value: '${r.totalReferred}',
++              ),
++            ),
++            const SizedBox(width: AppSpacing.sm),
++            Expanded(
++              child: _StatTile(
++                icon: Icons.hourglass_top_rounded,
++                color: AppColors.warning,
++                label: 'Pending',
++                value: '${r.pendingCount}',
++              ),
++            ),
++            const SizedBox(width: AppSpacing.sm),
++            Expanded(
++              child: _StatTile(
++                icon: Icons.emoji_events_rounded,
++                color: AppColors.success,
++                label: 'Points Earned',
++                value: '${r.pointsEarnedFromReferrals}',
++              ),
++            ),
++          ],
++        ),
++        if (r.referrals.isNotEmpty) ...<Widget>[
++          const SizedBox(height: AppSpacing.md),
++          const Text('Your Referrals',
++              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.slate900)),
++          const SizedBox(height: AppSpacing.xs),
++          Container(
++            decoration: BoxDecoration(
++              color: Colors.white,
++              borderRadius: BorderRadius.circular(AppRadius.lg),
++              boxShadow: AppColors.cardShadow,
++            ),
++            child: Column(
++              children: <Widget>[
++                for (final ReferralItem item in r.referrals.take(6)) _ReferralRow(item: item, formatDate: _formatDate),
++              ],
++            ),
++          ),
++        ] else
++          Padding(
++            padding: const EdgeInsets.only(top: AppSpacing.sm),
++            child: Text(
++              'No referrals yet — share your code to start earning.',
++              style: TextStyle(fontSize: 12.5, color: AppColors.slate500),
++            ),
++          ),
++      ],
++    );
++  }
+ }
+ 
+ // ─────────────────────────────────────────────────────────────────────────
+@@ -921,6 +1076,82 @@
+             ),
+           ),
+         ],
++      ),
++    );
++  }
++}
++
++class _ReferralRow extends StatelessWidget {
++  final ReferralItem item;
++  final String Function(DateTime) formatDate;
++
++  const _ReferralRow({required this.item, required this.formatDate});
++
++  Color get _statusColor {
++    switch (item.status) {
++      case 'rewarded':
++        return AppColors.success;
++      case 'expired':
++        return AppColors.danger;
++      case 'qualified':
++        return AppColors.info;
++      default:
++        return AppColors.warning;
++    }
++  }
++
++  String get _statusLabel {
++    switch (item.status) {
++      case 'rewarded':
++        return 'Rewarded';
++      case 'expired':
++        return 'Expired';
++      case 'qualified':
++        return 'Qualified';
++      default:
++        return 'Pending';
++    }
++  }
++
++  @override
++  Widget build(BuildContext context) {
++    return Padding(
++      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 10),
++      child: Row(
++        children: <Widget>[
++          Container(
++            width: 34,
++            height: 34,
++            decoration: BoxDecoration(color: AppColors.slate100, shape: BoxShape.circle),
++            child: const Icon(Icons.person_rounded, color: AppColors.slate500, size: 18),
++          ),
++          const SizedBox(width: 10),
++          Expanded(
++            child: Column(
++              crossAxisAlignment: CrossAxisAlignment.start,
++              children: <Widget>[
++                Text(
++                  item.refereeName,
++                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppColors.slate800),
++                  maxLines: 1,
++                  overflow: TextOverflow.ellipsis,
++                ),
++                Text(formatDate(item.referredAt), style: const TextStyle(fontSize: 10.5, color: AppColors.slate500)),
++              ],
++            ),
++          ),
++          Container(
++            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
++            decoration: BoxDecoration(
++              color: _statusColor.withOpacity(0.1),
++              borderRadius: BorderRadius.circular(AppRadius.pill),
++            ),
++            child: Text(
++              _statusLabel,
++              style: TextStyle(color: _statusColor, fontSize: 10.5, fontWeight: FontWeight.bold),
++            ),
++          ),
++        ],
+       ),
+     );
+   }
+diff -ruN '--exclude=node_modules' recon_app/lib/screens/complete_profile_screen.dart edit_app/app/lib/screens/complete_profile_screen.dart
+--- a/lib/screens/complete_profile_screen.dart	2026-08-08 07:45:17.518697249 +0000
++++ b/lib/screens/complete_profile_screen.dart	2026-08-07 22:57:19.844996787 +0000
+@@ -28,6 +28,8 @@
+   final TextEditingController _passwordController = TextEditingController();
+   final TextEditingController _confirmPasswordController =
+       TextEditingController();
++  final TextEditingController _referralCodeController =
++      TextEditingController();
+ 
+   bool _isLoading = false;
+   bool _isLoadingPhone = true;
+@@ -58,6 +60,7 @@
+     _phoneController.dispose();
+     _passwordController.dispose();
+     _confirmPasswordController.dispose();
++    _referralCodeController.dispose();
+     super.dispose();
+   }
+ 
+@@ -120,12 +123,17 @@
+       debugPrint('Email (normalized): $email'); // ✅ Debug output
+       debugPrint('Setting password: $_setPasswordNow');
+ 
++      final String? referralCode = _referralCodeController.text.trim().isEmpty
++          ? null
++          : _referralCodeController.text.trim().toUpperCase();
++
+       final registrationBody = {
+         'phone': _phoneNumber,
+         'firstName': firstName,
+         'lastName': lastName,
+         'email': email, // ✅ Use normalized email
+         'password': password,
++        'referralCode': referralCode,
+       };
+ 
+       final response = await http
+@@ -171,8 +179,18 @@
+ 
+         final position = await _getUserLocation();
+ 
++        final referral = data['referral'] as Map<String, dynamic>?;
++        final int? bonusPoints = referral != null
++            ? (referral['refereeBonusPoints'] as num?)?.toInt()
++            : null;
++
+         if (mounted) {
+-          _showSnack('Registration completed successfully!', isSuccess: true);
++          _showSnack(
++            (bonusPoints != null && bonusPoints > 0)
++                ? 'Registration complete! You earned $bonusPoints bonus points 🎉'
++                : 'Registration completed successfully!',
++            isSuccess: true,
++          );
+ 
+           Navigator.pushAndRemoveUntil(
+             context,
+@@ -462,6 +480,39 @@
+                                     ],
+                                   ),
+                                 ),
++                                const SizedBox(height: 16),
++
++                                // Referral Code Field (Optional)
++                                _buildTextField(
++                                  controller: _referralCodeController,
++                                  label: 'Referral Code (Optional)',
++                                  hint: 'Have a code? Enter it here',
++                                  icon: Icons.card_giftcard_outlined,
++                                ),
++                                const SizedBox(height: 8),
++                                Padding(
++                                  padding: const EdgeInsets.only(left: 4),
++                                  child: Row(
++                                    children: [
++                                      Icon(
++                                        Icons.card_giftcard,
++                                        size: 14,
++                                        color: Colors.grey[600],
++                                      ),
++                                      const SizedBox(width: 6),
++                                      Expanded(
++                                        child: Text(
++                                          'You and your friend both get bonus points',
++                                          style: TextStyle(
++                                            fontSize: 12,
++                                            color: Colors.grey[600],
++                                          ),
++                                        ),
++                                      ),
++                                    ],
++                                  ),
++                                ),
++
+                                 const SizedBox(height: 24),
+ 
+                                 // Password Setup Section
+diff -ruN '--exclude=node_modules' recon_app/lib/services/account_service.dart edit_app/app/lib/services/account_service.dart
+--- a/lib/services/account_service.dart	2026-08-08 07:45:17.534311700 +0000
++++ b/lib/services/account_service.dart	2026-08-07 23:04:04.567110435 +0000
+@@ -202,6 +202,82 @@
+   }
+ }
+ 
++class ReferralItem {
++  final int referralId;
++  final String refereeName;
++  final String status; // pending | qualified | rewarded | expired
++  final int referrerRewardPoints;
++  final DateTime referredAt;
++  final DateTime? rewardedAt;
++
++  const ReferralItem({
++    required this.referralId,
++    required this.refereeName,
++    required this.status,
++    required this.referrerRewardPoints,
++    required this.referredAt,
++    this.rewardedAt,
++  });
++
++  factory ReferralItem.fromJson(Map<String, dynamic> json) {
++    return ReferralItem(
++      referralId: (json['referral_id'] is num)
++          ? (json['referral_id'] as num).toInt()
++          : int.tryParse('${json['referral_id']}') ?? 0,
++      refereeName: json['referee_name']?.toString() ?? 'AquaGas user',
++      status: json['status']?.toString() ?? 'pending',
++      referrerRewardPoints: (json['referrer_reward_points'] is num)
++          ? (json['referrer_reward_points'] as num).toInt()
++          : int.tryParse('${json['referrer_reward_points']}') ?? 0,
++      referredAt: DateTime.tryParse(json['referred_at']?.toString() ?? '') ?? DateTime.now(),
++      rewardedAt: json['rewarded_at'] == null
++          ? null
++          : DateTime.tryParse(json['rewarded_at'].toString()),
++    );
++  }
++}
++
++class ReferralSummary {
++  final String referralCode;
++  final int referrerRewardPoints;
++  final int refereeRewardPoints;
++  final int totalReferred;
++  final int pendingCount;
++  final int rewardedCount;
++  final int expiredCount;
++  final int pointsEarnedFromReferrals;
++  final List<ReferralItem> referrals;
++
++  const ReferralSummary({
++    required this.referralCode,
++    required this.referrerRewardPoints,
++    required this.refereeRewardPoints,
++    required this.totalReferred,
++    required this.pendingCount,
++    required this.rewardedCount,
++    required this.expiredCount,
++    required this.pointsEarnedFromReferrals,
++    required this.referrals,
++  });
++
++  static int _int(dynamic v) => (v is num) ? v.toInt() : int.tryParse('$v') ?? 0;
++
++  factory ReferralSummary.fromJson(Map<String, dynamic> json) {
++    final List<dynamic> raw = (json['referrals'] as List<dynamic>?) ?? const <dynamic>[];
++    return ReferralSummary(
++      referralCode: json['referral_code']?.toString() ?? '',
++      referrerRewardPoints: _int(json['referrer_reward_points']),
++      refereeRewardPoints: _int(json['referee_reward_points']),
++      totalReferred: _int(json['total_referred']),
++      pendingCount: _int(json['pending_count']),
++      rewardedCount: _int(json['rewarded_count']),
++      expiredCount: _int(json['expired_count']),
++      pointsEarnedFromReferrals: _int(json['points_earned_from_referrals']),
++      referrals: raw.map((dynamic e) => ReferralItem.fromJson(e as Map<String, dynamic>)).toList(),
++    );
++  }
++}
++
+ // ─────────────────────────────────────────────────────────────────────────
+ // Service
+ // ─────────────────────────────────────────────────────────────────────────
+@@ -315,5 +391,20 @@
+     } catch (e) {
+       throw _friendlyError(e);
+     }
++  }
++
++  Future<ReferralSummary> getReferralSummary() async {
++    try {
++      final http.Response response = await http
++          .get(Uri.parse('$_baseUrl/referral'), headers: await _headers())
++          .timeout(const Duration(seconds: 15));
++
++      if (response.statusCode == 200) {
++        return ReferralSummary.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
++      }
++      throw Exception('Failed to load referral info (${response.statusCode}).');
++    } catch (e) {
++      throw _friendlyError(e);
++    }
+   }
+ }

@@ -28,6 +28,8 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController =
       TextEditingController();
+  final TextEditingController _referralCodeController =
+      TextEditingController();
 
   bool _isLoading = false;
   bool _isLoadingPhone = true;
@@ -58,6 +60,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
     _phoneController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+    _referralCodeController.dispose();
     super.dispose();
   }
 
@@ -120,12 +123,17 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
       debugPrint('Email (normalized): $email'); // ✅ Debug output
       debugPrint('Setting password: $_setPasswordNow');
 
+      final String? referralCode = _referralCodeController.text.trim().isEmpty
+          ? null
+          : _referralCodeController.text.trim().toUpperCase();
+
       final registrationBody = {
         'phone': _phoneNumber,
         'firstName': firstName,
         'lastName': lastName,
         'email': email, // ✅ Use normalized email
         'password': password,
+        'referralCode': referralCode,
       };
 
       final response = await http
@@ -171,8 +179,18 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
 
         final position = await _getUserLocation();
 
+        final referral = data['referral'] as Map<String, dynamic>?;
+        final int? bonusPoints = referral != null
+            ? (referral['refereeBonusPoints'] as num?)?.toInt()
+            : null;
+
         if (mounted) {
-          _showSnack('Registration completed successfully!', isSuccess: true);
+          _showSnack(
+            (bonusPoints != null && bonusPoints > 0)
+                ? 'Registration complete! You earned $bonusPoints bonus points 🎉'
+                : 'Registration completed successfully!',
+            isSuccess: true,
+          );
 
           Navigator.pushAndRemoveUntil(
             context,
@@ -462,6 +480,39 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                                     ],
                                   ),
                                 ),
+                                const SizedBox(height: 16),
+
+                                // Referral Code Field (Optional)
+                                _buildTextField(
+                                  controller: _referralCodeController,
+                                  label: 'Referral Code (Optional)',
+                                  hint: 'Have a code? Enter it here',
+                                  icon: Icons.card_giftcard_outlined,
+                                ),
+                                const SizedBox(height: 8),
+                                Padding(
+                                  padding: const EdgeInsets.only(left: 4),
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.card_giftcard,
+                                        size: 14,
+                                        color: Colors.grey[600],
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Expanded(
+                                        child: Text(
+                                          'You and your friend both get bonus points',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.grey[600],
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+
                                 const SizedBox(height: 24),
 
                                 // Password Setup Section

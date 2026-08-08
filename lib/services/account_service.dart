@@ -202,6 +202,82 @@ class LoyaltyReward {
   }
 }
 
+class ReferralItem {
+  final int referralId;
+  final String refereeName;
+  final String status; // pending | qualified | rewarded | expired
+  final int referrerRewardPoints;
+  final DateTime referredAt;
+  final DateTime? rewardedAt;
+
+  const ReferralItem({
+    required this.referralId,
+    required this.refereeName,
+    required this.status,
+    required this.referrerRewardPoints,
+    required this.referredAt,
+    this.rewardedAt,
+  });
+
+  factory ReferralItem.fromJson(Map<String, dynamic> json) {
+    return ReferralItem(
+      referralId: (json['referral_id'] is num)
+          ? (json['referral_id'] as num).toInt()
+          : int.tryParse('${json['referral_id']}') ?? 0,
+      refereeName: json['referee_name']?.toString() ?? 'AquaGas user',
+      status: json['status']?.toString() ?? 'pending',
+      referrerRewardPoints: (json['referrer_reward_points'] is num)
+          ? (json['referrer_reward_points'] as num).toInt()
+          : int.tryParse('${json['referrer_reward_points']}') ?? 0,
+      referredAt: DateTime.tryParse(json['referred_at']?.toString() ?? '') ?? DateTime.now(),
+      rewardedAt: json['rewarded_at'] == null
+          ? null
+          : DateTime.tryParse(json['rewarded_at'].toString()),
+    );
+  }
+}
+
+class ReferralSummary {
+  final String referralCode;
+  final int referrerRewardPoints;
+  final int refereeRewardPoints;
+  final int totalReferred;
+  final int pendingCount;
+  final int rewardedCount;
+  final int expiredCount;
+  final int pointsEarnedFromReferrals;
+  final List<ReferralItem> referrals;
+
+  const ReferralSummary({
+    required this.referralCode,
+    required this.referrerRewardPoints,
+    required this.refereeRewardPoints,
+    required this.totalReferred,
+    required this.pendingCount,
+    required this.rewardedCount,
+    required this.expiredCount,
+    required this.pointsEarnedFromReferrals,
+    required this.referrals,
+  });
+
+  static int _int(dynamic v) => (v is num) ? v.toInt() : int.tryParse('$v') ?? 0;
+
+  factory ReferralSummary.fromJson(Map<String, dynamic> json) {
+    final List<dynamic> raw = (json['referrals'] as List<dynamic>?) ?? const <dynamic>[];
+    return ReferralSummary(
+      referralCode: json['referral_code']?.toString() ?? '',
+      referrerRewardPoints: _int(json['referrer_reward_points']),
+      refereeRewardPoints: _int(json['referee_reward_points']),
+      totalReferred: _int(json['total_referred']),
+      pendingCount: _int(json['pending_count']),
+      rewardedCount: _int(json['rewarded_count']),
+      expiredCount: _int(json['expired_count']),
+      pointsEarnedFromReferrals: _int(json['points_earned_from_referrals']),
+      referrals: raw.map((dynamic e) => ReferralItem.fromJson(e as Map<String, dynamic>)).toList(),
+    );
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────
 // Service
 // ─────────────────────────────────────────────────────────────────────────
@@ -312,6 +388,21 @@ class AccountService {
         return (data['newBalance'] is num) ? (data['newBalance'] as num).toInt() : 0;
       }
       throw Exception(data['error']?.toString() ?? 'Failed to redeem reward.');
+    } catch (e) {
+      throw _friendlyError(e);
+    }
+  }
+
+  Future<ReferralSummary> getReferralSummary() async {
+    try {
+      final http.Response response = await http
+          .get(Uri.parse('$_baseUrl/referral'), headers: await _headers())
+          .timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 200) {
+        return ReferralSummary.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
+      }
+      throw Exception('Failed to load referral info (${response.statusCode}).');
     } catch (e) {
       throw _friendlyError(e);
     }
