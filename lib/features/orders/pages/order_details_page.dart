@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:aquagas/features/orders/models/order_model.dart';
 import 'package:aquagas/features/orders/services/order_service.dart';
 import 'package:aquagas/features/orders/pages/order_tracking_page.dart';
+import 'package:aquagas/features/orders/pages/rate_order_page.dart';
 
 class OrderDetailsPage extends StatefulWidget {
   final String orderId;
@@ -157,6 +158,22 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
                   ),
                 ),
                 const SizedBox(height: 12),
+                if (order.status == 'delivered')
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      icon: const Icon(Icons.star_rounded),
+                      label: const Text('Rate Your Order'),
+                      onPressed: () {
+                        Navigator.push<void>(
+                          context,
+                          MaterialPageRoute<void>(
+                            builder: (BuildContext _) => RateOrderPage(orderId: order.id),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
                 if (order.status != 'delivered' && order.status != 'cancelled')
                   SizedBox(
                     width: double.infinity,

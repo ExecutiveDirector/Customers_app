@@ -36,17 +36,4 @@ class OrderService {
   Future<void> cancelOrder(String orderId, String reason) async {
     await _base.cancelOrder(orderId, reason: reason);
   }
-
-  /// Submit a review / rating for a delivered order.
-  /// NOTE: The base OrderService does not yet expose this endpoint.
-  /// This is a placeholder that can be wired once the backend supports it.
-  Future<void> submitReview({
-    required String orderId,
-    required int rating,
-    required String review,
-  }) async {
-    // TODO: implement once backend exposes POST /orders/:id/review
-    throw UnimplementedError(
-        'submitReview is not yet supported by the backend');
-  }
 }
