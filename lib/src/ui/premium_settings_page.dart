@@ -130,31 +130,6 @@ class _PremiumSettingsPageState extends State<PremiumSettingsPage>
                 ),
               ),
             ),
-            actions: [
-              Container(
-                margin: const EdgeInsets.only(right: 16),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      theme.colorScheme.primary,
-                      theme.colorScheme.primary.withOpacity(0.8),
-                    ],
-                  ),
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: theme.colorScheme.primary.withOpacity(0.3),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: IconButton(
-                  icon: const Icon(Icons.settings_rounded, color: Colors.white),
-                  onPressed: () {},
-                ),
-              ),
-            ],
           ),
 
           // Content
@@ -326,11 +301,6 @@ class _PremiumSettingsPageState extends State<PremiumSettingsPage>
 
                 const SizedBox(height: 16),
 
-                // Premium Ad Card
-                _buildPremiumCard(theme),
-
-                const SizedBox(height: 24),
-
                 // Footer
                 Center(
                   child: Column(
@@ -408,73 +378,6 @@ class _PremiumSettingsPageState extends State<PremiumSettingsPage>
                   child,
                 ],
               )),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPremiumCard(ThemeData theme) {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF9333EA), Color(0xFFDB2777)],
-        ),
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF9333EA).withOpacity(0.4),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        children: [
-          Text(
-            'Premium Feature',
-            style: theme.textTheme.labelMedium?.copyWith(
-              color: Colors.white.withOpacity(0.9),
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Go Ad-Free!',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 24,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Upgrade to Premium for the best experience',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: Colors.white.withOpacity(0.8),
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 16),
-          ElevatedButton(
-            onPressed: () {},
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.white,
-              foregroundColor: const Color(0xFF9333EA),
-              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              elevation: 8,
-              shadowColor: Colors.white.withOpacity(0.5),
-            ),
-            child: const Text(
-              'Learn More',
-              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
-            ),
-          ),
         ],
       ),
     );
