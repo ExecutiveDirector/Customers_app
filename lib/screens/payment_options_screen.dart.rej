@@ -1,0 +1,218 @@
+--- lib/screens/payment_options_screen.dart	2026-08-14 04:06:25.821589347 +0000
++++ lib/screens/payment_options_screen.dart	2026-08-14 04:06:25.872678797 +0000
+@@ -1,4 +1,5 @@
+ // lib/screens/payment_options_screen.dart
++import 'dart:async';
+ import 'dart:convert';
+ import 'package:flutter/material.dart';
+ import 'package:geolocator/geolocator.dart';
+@@ -9,6 +10,7 @@
+ import 'package:aquagas/app_order.dart' as models;
+ import 'package:aquagas/services/auth_service.dart';
+ import 'package:aquagas/screens/pesapal_webview.dart';
++import 'package:aquagas/services/sasapay_service.dart';
+ import 'package:aquagas/cart.dart';
+ 
+ // ─── Colour tokens ────────────────────────────────────────────────────────────
+@@ -76,6 +78,7 @@
+ 
+   // ─── Payment ──────────────────────────────────────────────────────────────
+   String _paymentMethod = 'pesapal';
++  final SasapayService _sasapayService = SasapayService();
+ 
+   // ─── Lifecycle ────────────────────────────────────────────────────────────
+   @override
+@@ -386,8 +389,8 @@
+       );
+       return;
+     }
+-    if (_paymentMethod == 'mpesa') {
+-      _showSnack('M-Pesa integration coming soon!', Colors.orange.shade700);
++    if (_paymentMethod == 'sasapay') {
++      await _paySasapay();
+       return;
+     }
+ 
+@@ -424,6 +427,55 @@
+     }
+   }
+ 
++  Future<void> _paySasapay() async {
++    setState(() => _isPaying = true);
++    String? orderId;
++    try {
++      orderId = await _createDraftOrder();
++
++      final SasapayInitiateResult initiated = await _sasapayService.initiatePayment(
++        orderId: orderId,
++        phoneNumber: _phoneCtrl.text.trim(),
++      );
++
++      if (!mounted) return;
++      setState(() => _isPaying = false);
++
++      final bool? paid = await showDialog<bool>(
++        context: context,
++        barrierDismissible: false,
++        builder: (_) => _SasapayWaitingDialog(
++          message: initiated.message,
++          service: _sasapayService,
++          orderId: orderId!,
++        ),
++      );
++
++      if (paid == true) {
++        if (!mounted) return;
++        _showSnack('Payment confirmed! 🎉', Colors.green.shade700);
++        Navigator.pushReplacementNamed(
++          context,
++          '/orderConfirmation',
++          arguments: widget.order.copyWith(id: orderId),
++        );
++      } else {
++        await _cancelDraft(orderId);
++        if (mounted) {
++          _showSnack(
++            paid == false ? 'Payment was not completed' : 'Payment cancelled',
++            Colors.orange.shade700,
++          );
++        }
++      }
++    } catch (e) {
++      if (orderId != null) await _cancelDraft(orderId);
++      if (mounted) _showSnack('Payment failed: $e', Colors.red.shade700);
++    } finally {
++      if (mounted) setState(() => _isPaying = false);
++    }
++  }
++
+   Future<String> _createDraftOrder() async {
+     final dynamic user = _isGuest ? null : await _auth.getCurrentUser();
+ 
+@@ -1360,12 +1412,12 @@
+         children: <Widget>[
+           Expanded(
+             child: _paymentChip(
+-              method: 'mpesa',
++              method: 'sasapay',
+               label: 'M-Pesa',
++              sublabel: 'via SasaPay',
+               icon: Icons.phone_android,
+               iconColor: const Color(0xFF00A651),
+-              badge: 'Soon',
+-              enabled: false,
++              enabled: true,
+             ),
+           ),
+           const SizedBox(width: 8),
+@@ -1552,4 +1604,110 @@
+       ),
+     );
+   }
+-}+}
++/// Shown while waiting for the customer to enter their M-PESA PIN after a
++/// SasaPay STK push. Polls the backend (which is updated once SasaPay's
++/// own callback lands) rather than SasaPay directly, since SasaPay has no
++/// synchronous "check now" endpoint suitable for a tight polling loop.
++class _SasapayWaitingDialog extends StatefulWidget {
++  final String message;
++  final SasapayService service;
++  final String orderId;
++
++  const _SasapayWaitingDialog({
++    required this.message,
++    required this.service,
++    required this.orderId,
++  });
++
++  @override
++  State<_SasapayWaitingDialog> createState() => _SasapayWaitingDialogState();
++}
++
++class _SasapayWaitingDialogState extends State<_SasapayWaitingDialog> {
++  static const int _timeoutSeconds = 120;
++  static const Duration _pollInterval = Duration(seconds: 3);
++
++  Timer? _pollTimer;
++  int _secondsElapsed = 0;
++  String? _error;
++
++  @override
++  void initState() {
++    super.initState();
++    _pollTimer = Timer.periodic(_pollInterval, (_) => _poll());
++  }
++
++  @override
++  void dispose() {
++    _pollTimer?.cancel();
++    super.dispose();
++  }
++
++  Future<void> _poll() async {
++    _secondsElapsed += _pollInterval.inSeconds;
++
++    if (_secondsElapsed >= _timeoutSeconds) {
++      _pollTimer?.cancel();
++      if (mounted) Navigator.pop(context, false);
++      return;
++    }
++
++    try {
++      final SasapayStatusResult status = await widget.service.checkStatus(widget.orderId);
++      if (status.isPaid) {
++        _pollTimer?.cancel();
++        if (mounted) Navigator.pop(context, true);
++      } else if (status.isFailed) {
++        _pollTimer?.cancel();
++        if (mounted) Navigator.pop(context, false);
++      }
++    } catch (e) {
++      // Transient network errors shouldn't abandon the wait — just keep
++      // polling until the timeout.
++      if (mounted) setState(() => _error = 'Having trouble checking status...');
++    }
++  }
++
++  @override
++  Widget build(BuildContext context) {
++    return WillPopScope(
++      onWillPop: () async => false,
++      child: Dialog(
++        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
++        child: Padding(
++          padding: const EdgeInsets.all(24),
++          child: Column(
++            mainAxisSize: MainAxisSize.min,
++            children: <Widget>[
++              const CircularProgressIndicator(color: Color(0xFF00A651)),
++              const SizedBox(height: 20),
++              const Text(
++                'Check your phone',
++                style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
++              ),
++              const SizedBox(height: 8),
++              Text(
++                widget.message,
++                textAlign: TextAlign.center,
++                style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
++              ),
++              if (_error != null) ...<Widget>[
++                const SizedBox(height: 8),
++                Text(_error!, style: TextStyle(fontSize: 11.5, color: Colors.orange.shade700)),
++              ],
++              const SizedBox(height: 20),
++              TextButton(
++                onPressed: () {
++                  _pollTimer?.cancel();
++                  Navigator.pop(context, false);
++                },
++                child: const Text('Cancel'),
++              ),
++            ],
++          ),
++        ),
++      ),
++    );
++  }
++}

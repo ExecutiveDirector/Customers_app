@@ -1,0 +1,307 @@
+--- a/lib/screens/product_detail_screen.dart
++++ b/lib/screens/product_detail_screen.dart
+@@ -10,6 +10,7 @@
+ 
+ import 'package:aquagas/models/product.dart';
+ import 'package:aquagas/services/product_service.dart';
++import 'package:aquagas/services/review_service.dart';
+ import 'package:aquagas/theme/app_colors.dart';
+ 
+ class ProductDetailScreen extends StatefulWidget {
+@@ -314,6 +315,10 @@
+               ],
+             ),
+           ],
++          const SizedBox(height: 20),
++          _sectionTitle('Reviews'),
++          const SizedBox(height: 8),
++          _ProductReviewsSection(productId: p.id),
+           if (_loadingDetails) ...<Widget>[
+             const SizedBox(height: 20),
+             const Center(
+@@ -614,4 +619,285 @@
+       ),
+     );
+   }
++}
++
++/// Rating summary + individual reviews for a product. Self-contained —
++/// fetches its own data via ReviewService so it works regardless of
++/// whether the rest of the page has finished loading.
++class _ProductReviewsSection extends StatefulWidget {
++  final String productId;
++  const _ProductReviewsSection({required this.productId});
++
++  @override
++  State<_ProductReviewsSection> createState() => _ProductReviewsSectionState();
++}
++
++class _ProductReviewsSectionState extends State<_ProductReviewsSection> {
++  final ReviewService _service = ReviewService();
++
++  bool _loading = true;
++  bool _loadingMore = false;
++  String? _error;
++  ReviewSummary _summary = ReviewSummary.empty;
++  final List<ReviewItem> _reviews = <ReviewItem>[];
++  int _page = 1;
++  bool _hasMore = false;
++
++  int? get _targetId => int.tryParse(widget.productId);
++
++  @override
++  void initState() {
++    super.initState();
++    _load();
++  }
++
++  Future<void> _load() async {
++    final int? targetId = _targetId;
++    if (targetId == null) {
++      setState(() => _loading = false);
++      return;
++    }
++    setState(() {
++      _loading = true;
++      _error = null;
++    });
++    try {
++      final ReviewListPage result = await _service.getReviews(type: ReviewType.product, targetId: targetId);
++      if (!mounted) return;
++      setState(() {
++        _summary = result.summary;
++        _reviews
++          ..clear()
++          ..addAll(result.reviews);
++        _page = result.page;
++        _hasMore = result.hasMore;
++        _loading = false;
++      });
++    } catch (e) {
++      if (!mounted) return;
++      setState(() {
++        _error = e.toString().replaceFirst('Exception: ', '');
++        _loading = false;
++      });
++    }
++  }
++
++  Future<void> _loadMore() async {
++    final int? targetId = _targetId;
++    if (targetId == null || _loadingMore) return;
++    setState(() => _loadingMore = true);
++    try {
++      final ReviewListPage result = await _service.getReviews(
++        type: ReviewType.product,
++        targetId: targetId,
++        page: _page + 1,
++      );
++      if (!mounted) return;
++      setState(() {
++        _reviews.addAll(result.reviews);
++        _page = result.page;
++        _hasMore = result.hasMore;
++        _loadingMore = false;
++      });
++    } catch (_) {
++      if (mounted) setState(() => _loadingMore = false);
++    }
++  }
++
++  String _formatDate(DateTime date) {
++    const List<String> months = <String>[
++      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
++      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
++    ];
++    return '${months[date.month - 1]} ${date.year}';
++  }
++
++  @override
++  Widget build(BuildContext context) {
++    if (_loading) {
++      return const Padding(
++        padding: EdgeInsets.symmetric(vertical: 16),
++        child: Center(
++          child: SizedBox(
++            width: 18, height: 18,
++            child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.green500),
++          ),
++        ),
++      );
++    }
++    if (_error != null) {
++      return Padding(
++        padding: const EdgeInsets.symmetric(vertical: 8),
++        child: Row(
++          children: <Widget>[
++            const Icon(Icons.info_outline_rounded, size: 15, color: AppColors.slate400),
++            const SizedBox(width: 6),
++            Expanded(child: Text('Couldn\'t load reviews', style: const TextStyle(color: AppColors.slate500, fontSize: 12.5))),
++            TextButton(onPressed: _load, child: const Text('Retry', style: TextStyle(fontSize: 12.5))),
++          ],
++        ),
++      );
++    }
++    if (_summary.totalReviews == 0) {
++      return const Padding(
++        padding: EdgeInsets.symmetric(vertical: 8),
++        child: Text(
++          'No reviews yet — reviews appear here after customers rate this product post-delivery.',
++          style: TextStyle(color: AppColors.slate500, fontSize: 12.5),
++        ),
++      );
++    }
++
++    return Column(
++      crossAxisAlignment: CrossAxisAlignment.start,
++      children: <Widget>[
++        Row(
++          crossAxisAlignment: CrossAxisAlignment.start,
++          children: <Widget>[
++            Column(
++              crossAxisAlignment: CrossAxisAlignment.start,
++              children: <Widget>[
++                Text(_summary.averageRating.toStringAsFixed(1),
++                    style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w800, color: AppColors.slate800)),
++                Row(
++                  children: List<Widget>.generate(5, (int i) {
++                    final double diff = _summary.averageRating - i;
++                    return Icon(
++                      diff >= 0.75 ? Icons.star_rounded : (diff >= 0.25 ? Icons.star_half_rounded : Icons.star_outline_rounded),
++                      color: AppColors.amber500,
++                      size: 15,
++                    );
++                  }),
++                ),
++                const SizedBox(height: 2),
++                Text('${_summary.totalReviews} review${_summary.totalReviews == 1 ? '' : 's'}',
++                    style: const TextStyle(color: AppColors.slate500, fontSize: 11.5)),
++              ],
++            ),
++            const SizedBox(width: 20),
++            Expanded(
++              child: Column(
++                children: List<Widget>.generate(5, (int i) {
++                  final int star = 5 - i;
++                  final int count = _summary.distribution[star] ?? 0;
++                  final double fraction = _summary.totalReviews == 0 ? 0 : count / _summary.totalReviews;
++                  return Padding(
++                    padding: const EdgeInsets.symmetric(vertical: 2),
++                    child: Row(
++                      children: <Widget>[
++                        Text('$star', style: const TextStyle(fontSize: 10.5, color: AppColors.slate500)),
++                        const SizedBox(width: 4),
++                        Expanded(
++                          child: ClipRRect(
++                            borderRadius: BorderRadius.circular(4),
++                            child: LinearProgressIndicator(
++                              value: fraction,
++                              minHeight: 6,
++                              backgroundColor: AppColors.slate100,
++                              valueColor: const AlwaysStoppedAnimation<Color>(AppColors.amber500),
++                            ),
++                          ),
++                        ),
++                      ],
++                    ),
++                  );
++                }),
++              ),
++            ),
++          ],
++        ),
++        const SizedBox(height: 16),
++        for (final ReviewItem r in _reviews) _ReviewTile(review: r, formatDate: _formatDate),
++        if (_hasMore)
++          Center(
++            child: TextButton(
++              onPressed: _loadingMore ? null : _loadMore,
++              child: _loadingMore
++                  ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
++                  : const Text('Load more reviews'),
++            ),
++          ),
++      ],
++    );
++  }
++}
++
++class _ReviewTile extends StatelessWidget {
++  final ReviewItem review;
++  final String Function(DateTime) formatDate;
++  const _ReviewTile({required this.review, required this.formatDate});
++
++  @override
++  Widget build(BuildContext context) {
++    return Padding(
++      padding: const EdgeInsets.symmetric(vertical: 10),
++      child: Column(
++        crossAxisAlignment: CrossAxisAlignment.start,
++        children: <Widget>[
++          Row(
++            children: <Widget>[
++              Container(
++                width: 30, height: 30,
++                decoration: const BoxDecoration(color: AppColors.slate100, shape: BoxShape.circle),
++                child: Center(
++                  child: Text(
++                    review.reviewerName.isNotEmpty ? review.reviewerName[0].toUpperCase() : '?',
++                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.slate600),
++                  ),
++                ),
++              ),
++              const SizedBox(width: 8),
++              Expanded(
++                child: Column(
++                  crossAxisAlignment: CrossAxisAlignment.start,
++                  children: <Widget>[
++                    Row(
++                      children: <Widget>[
++                        Text(review.reviewerName,
++                            style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppColors.slate800)),
++                        if (review.isVerified) ...<Widget>[
++                          const SizedBox(width: 4),
++                          const Icon(Icons.verified_rounded, size: 12, color: AppColors.green500),
++                        ],
++                      ],
++                    ),
++                    Text(formatDate(review.createdAt), style: const TextStyle(fontSize: 10.5, color: AppColors.slate400)),
++                  ],
++                ),
++              ),
++              Row(
++                children: List<Widget>.generate(
++                  5,
++                  (int i) => Icon(
++                    i < review.overallRating.round() ? Icons.star_rounded : Icons.star_outline_rounded,
++                    color: AppColors.amber500,
++                    size: 13,
++                  ),
++                ),
++              ),
++            ],
++          ),
++          if (review.text != null && review.text!.trim().isNotEmpty) ...<Widget>[
++            const SizedBox(height: 6),
++            Text(review.text!, style: const TextStyle(color: AppColors.slate700, fontSize: 12.5, height: 1.4)),
++          ],
++          if (review.vendorResponse != null && review.vendorResponse!.trim().isNotEmpty) ...<Widget>[
++            const SizedBox(height: 8),
++            Container(
++              padding: const EdgeInsets.all(8),
++              decoration: BoxDecoration(color: AppColors.slate50, borderRadius: BorderRadius.circular(8)),
++              child: Column(
++                crossAxisAlignment: CrossAxisAlignment.start,
++                children: <Widget>[
++                  const Text('Vendor response', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: AppColors.slate600)),
++                  const SizedBox(height: 2),
++                  Text(review.vendorResponse!, style: const TextStyle(fontSize: 12, color: AppColors.slate600)),
++                ],
++              ),
++            ),
++          ],
++        ],
++      ),
++    );
++  }
+ }
