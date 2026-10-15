@@ -602,6 +602,12 @@ class _InfoPanel extends StatelessWidget {
               value: statusLabel,
               valueColor: statusColor),
 
+          // ── Delivery code (give to the rider on arrival) ─────────────────
+          if (_deliveryCode(order) != null) ...[
+            const SizedBox(height: 12),
+            _DeliveryCodeCard(code: _deliveryCode(order)!),
+          ],
+
           // ── Rider card (shown only when rider is assigned) ───────────────
           if (rider != null) ...[
             const SizedBox(height: 12),
@@ -770,6 +776,67 @@ class _Row extends StatelessWidget {
               ),
               overflow: TextOverflow.ellipsis,
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The customer's delivery code, only present for the order owner while the
+/// order is still open. Backend: GET /orders/:id → data.delivery_code.
+String? _deliveryCode(Map<String, dynamic> order) {
+  final String code = (order['delivery_code'] ?? '').toString().trim();
+  if (code.isEmpty) return null;
+  final String status =
+      (order['order_status'] ?? order['status'] ?? '').toString().toLowerCase();
+  if (status == 'delivered' ||
+      status == 'canceled' ||
+      status == 'cancelled' ||
+      status == 'refunded') {
+    return null;
+  }
+  return code;
+}
+
+class _DeliveryCodeCard extends StatelessWidget {
+  const _DeliveryCodeCard({required this.code});
+  final String code;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: _kGreen100,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        children: <Widget>[
+          const Icon(Icons.lock_outline_rounded, color: _kGreen900),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: const <Widget>[
+                Text('Delivery code',
+                    style: TextStyle(
+                        fontWeight: FontWeight.w700, color: _kGreen900)),
+                SizedBox(height: 2),
+                Text('Give this to your rider when they arrive. Never share it earlier.',
+                    style: TextStyle(fontSize: 12, color: _kSlate500)),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            code.split('').join(' '),
+            style: const TextStyle(
+                fontSize: 26,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 2,
+                color: _kGreen900),
           ),
         ],
       ),
