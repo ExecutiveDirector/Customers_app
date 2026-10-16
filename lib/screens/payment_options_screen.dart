@@ -393,6 +393,10 @@ class _PaymentOptionsScreenState extends State<PaymentOptionsScreen> {
       await _paySasapay();
       return;
     }
+    if (_paymentMethod == 'cod') {
+      await _payCashOnDelivery();
+      return;
+    }
 
     setState(() => _isPaying = true);
     try {
@@ -422,6 +426,47 @@ class _PaymentOptionsScreenState extends State<PaymentOptionsScreen> {
       }
     } catch (e) {
       if (mounted) _showSnack('Payment failed: $e', Colors.red.shade700);
+    } finally {
+      if (mounted) setState(() => _isPaying = false);
+    }
+  }
+
+  /// Cash on delivery: no gateway. The backend records the amount the rider
+  /// must collect (only for home delivery, up to its COD limit) and dispatches.
+  Future<void> _payCashOnDelivery() async {
+    setState(() => _isPaying = true);
+    String? orderId;
+    try {
+      orderId = await _createDraftOrder();
+      final http.Response res = await http.post(
+        Uri.parse('$_baseUrl/orders/$orderId/confirm'),
+        headers: await _headers(),
+        body: json.encode(<String, dynamic>{
+          'payment_method': 'cod',
+          'phone_number': _phoneCtrl.text.trim(),
+        }),
+      );
+      if (res.statusCode != 200) {
+        String msg = 'Could not place cash order (${res.statusCode})';
+        try {
+          final dynamic body = json.decode(res.body);
+          if (body is Map && body['error'] != null) msg = body['error'].toString();
+        } catch (_) {}
+        throw Exception(msg);
+      }
+      if (!mounted) return;
+      _showSnack('Order placed. Pay cash on delivery.', Colors.green.shade700);
+      Navigator.pushReplacementNamed(
+        context,
+        '/orderConfirmation',
+        arguments: widget.order.copyWith(id: orderId),
+      );
+    } catch (e) {
+      if (orderId != null) await _cancelDraft(orderId);
+      if (mounted) {
+        _showSnack(e.toString().replaceFirst('Exception: ', ''),
+            Colors.red.shade700);
+      }
     } finally {
       if (mounted) setState(() => _isPaying = false);
     }
@@ -1408,7 +1453,8 @@ class _PaymentOptionsScreenState extends State<PaymentOptionsScreen> {
       );
 
   // ─── Payment method row ───────────────────────────────────────────────────
-  Widget _paymentMethodRow() => Row(
+  Widget _paymentMethodRow() => Column(children: <Widget>[
+        Row(
         children: <Widget>[
           Expanded(
             child: _paymentChip(
@@ -1432,7 +1478,19 @@ class _PaymentOptionsScreenState extends State<PaymentOptionsScreen> {
             ),
           ),
         ],
-      );
+      ),
+        if (_deliveryType == 'home') ...<Widget>[
+          const SizedBox(height: 8),
+          _paymentChip(
+            method: 'cod',
+            label: 'Cash on delivery',
+            sublabel: 'Pay the rider in cash when it arrives',
+            icon: Icons.payments_outlined,
+            iconColor: _kGreen,
+            enabled: true,
+          ),
+        ],
+      ]);
 
   Widget _paymentChip({
     required String method,
@@ -1562,7 +1620,9 @@ class _PaymentOptionsScreenState extends State<PaymentOptionsScreen> {
 
   // ─── Proceed button ───────────────────────────────────────────────────────
   Widget _proceedButton(double total) {
-    final bool ready = _paymentMethod == 'pesapal' && _isScheduleComplete;
+    final bool isCod = _paymentMethod == 'cod';
+    final bool ready =
+        (_paymentMethod == 'pesapal' || isCod) && _isScheduleComplete;
     return SizedBox(
       width: double.infinity,
       height: 52,
@@ -1588,8 +1648,10 @@ class _PaymentOptionsScreenState extends State<PaymentOptionsScreen> {
                   const SizedBox(width: 8),
                   Text(
                     ready
-                        ? 'Pay ${_currency.format(total)} via Pesapal'
-                        : _paymentMethod != 'pesapal'
+                        ? (isCod
+                            ? 'Place order · pay ${_currency.format(total)} on delivery'
+                            : 'Pay ${_currency.format(total)} via Pesapal')
+                        : (_paymentMethod != 'pesapal' && !isCod)
                             ? 'Select a payment method'
                             : 'Select delivery date & time',
                     style: TextStyle(
