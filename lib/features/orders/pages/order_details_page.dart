@@ -25,16 +25,89 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
     future = OrderService().getOrder(widget.orderId);
   }
 
-  Future<void> _cancelOrder() async {
-    await OrderService().cancelOrder(widget.orderId, 'Customer Request');
+  bool _cancelling = false;
 
-    if (!mounted) return;
+  /// Customers can cancel until the vendor starts preparing (server enforces this too).
+  static bool _canCancel(String status) =>
+      status == 'pending' || status == 'confirmed' || status == 'draft';
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Order cancelled')),
+  Future<void> _cancelOrder(OrderModel order) async {
+    const List<String> reasons = <String>[
+      'Ordered by mistake',
+      'Found a better price',
+      'Delivery takes too long',
+      'Changed my mind',
+    ];
+    final TextEditingController other = TextEditingController();
+    String? picked;
+    final String? reason = await showDialog<String>(
+      context: context,
+      builder: (BuildContext ctx) => StatefulBuilder(
+        builder: (BuildContext ctx, StateSetter setLocal) => AlertDialog(
+          title: const Text('Cancel this order?'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                if (order.paymentStatus.toLowerCase() == 'paid')
+                  const Padding(
+                    padding: EdgeInsets.only(bottom: 8),
+                    child: Text('You have already paid. Our team will refund you.'),
+                  ),
+                for (final String r in reasons)
+                  RadioListTile<String>(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    value: r,
+                    groupValue: picked,
+                    title: Text(r),
+                    onChanged: (String? v) => setLocal(() => picked = v),
+                  ),
+                TextField(
+                  controller: other,
+                  decoration: const InputDecoration(labelText: 'Other reason (optional)'),
+                  onChanged: (_) => setLocal(() {}),
+                ),
+              ],
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+                onPressed: () => Navigator.pop(ctx), child: const Text('Keep order')),
+            FilledButton(
+              onPressed: (picked != null || other.text.trim().length >= 3)
+                  ? () => Navigator.pop(
+                      ctx, other.text.trim().length >= 3 ? other.text.trim() : picked)
+                  : null,
+              style: FilledButton.styleFrom(backgroundColor: Colors.red),
+              child: const Text('Cancel order'),
+            ),
+          ],
+        ),
+      ),
     );
+    other.dispose();
+    if (reason == null) return;
 
-    Navigator.pop(context);
+    setState(() => _cancelling = true);
+    try {
+      await OrderService().cancelOrder(widget.orderId, reason);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(order.paymentStatus.toLowerCase() == 'paid'
+            ? 'Order cancelled. Our team will process your refund.'
+            : 'Order cancelled'),
+      ));
+      Navigator.pop(context);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _cancelling = false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(e.toString().replaceFirst('Exception: ', '')),
+        backgroundColor: Colors.red,
+      ));
+    }
   }
 
   @override
@@ -174,12 +247,21 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
                       },
                     ),
                   ),
-                if (order.status != 'delivered' && order.status != 'cancelled')
+                if (_canCancel(order.status.toLowerCase()))
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton(
-                      onPressed: _cancelOrder,
-                      child: const Text('Cancel Order'),
+                      onPressed: _cancelling ? null : () => _cancelOrder(order),
+                      child: Text(_cancelling ? 'Cancelling…' : 'Cancel Order'),
+                    ),
+                  )
+                else if (!<String>['delivered', 'cancelled', 'canceled', 'refunded']
+                    .contains(order.status.toLowerCase()))
+                  const Padding(
+                    padding: EdgeInsets.only(top: 4),
+                    child: Text(
+                      'Your order is already being prepared or delivered. Contact support if you need to cancel.',
+                      style: TextStyle(color: Colors.grey),
                     ),
                   ),
               ],
