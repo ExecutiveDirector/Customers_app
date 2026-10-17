@@ -3,6 +3,7 @@ import 'package:aquagas/features/orders/models/order_model.dart';
 import 'package:aquagas/features/orders/services/order_service.dart';
 import 'package:aquagas/features/orders/pages/order_tracking_page.dart';
 import 'package:aquagas/features/orders/pages/rate_order_page.dart';
+import 'package:aquagas/features/chat/order_chat_page.dart';
 
 class OrderDetailsPage extends StatefulWidget {
   final String orderId;
@@ -231,6 +232,25 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
                   ),
                 ),
                 const SizedBox(height: 12),
+                if (<String>['confirmed', 'preparing', 'ready', 'dispatched', 'delivered']
+                    .contains(order.status.toLowerCase()))
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.chat_bubble_outline),
+                        label: const Text('Chat with rider'),
+                        onPressed: () => Navigator.push<void>(
+                          context,
+                          MaterialPageRoute<void>(
+                            builder: (BuildContext _) =>
+                                OrderChatPage(orderId: order.id),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                 if (order.status == 'delivered')
                   SizedBox(
                     width: double.infinity,
