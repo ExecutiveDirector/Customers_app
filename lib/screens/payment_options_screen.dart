@@ -78,6 +78,7 @@ class _PaymentOptionsScreenState extends State<PaymentOptionsScreen> {
 
   // ─── Payment ──────────────────────────────────────────────────────────────
   String _paymentMethod = 'pesapal';
+  double? _walletBalance; // null until loaded / for guests
   final SasapayService _sasapayService = SasapayService();
 
   // ─── Lifecycle ────────────────────────────────────────────────────────────
@@ -99,6 +100,25 @@ class _PaymentOptionsScreenState extends State<PaymentOptionsScreen> {
   // ─── Auth ─────────────────────────────────────────────────────────────────
   Future<void> _checkAuth() async {
     _isGuest = !await _auth.isAuthenticated();
+    if (!_isGuest) await _loadWalletBalance();
+  }
+
+  /// Wallet balance for the "Pay with wallet" option (refunds land here).
+  Future<void> _loadWalletBalance() async {
+    try {
+      final http.Response res = await http.get(
+        Uri.parse('$_baseUrl/users/wallet'),
+        headers: await _headers(),
+      );
+      if (res.statusCode == 200) {
+        final dynamic body = json.decode(res.body);
+        final dynamic raw = body is Map ? (body['balance'] ?? (body['wallet'] is Map ? body['wallet']['balance'] : null)) : null;
+        final double? bal = raw == null ? null : double.tryParse(raw.toString());
+        if (mounted) setState(() => _walletBalance = bal);
+      }
+    } catch (_) {
+      // Wallet option simply stays hidden if the balance can't be loaded.
+    }
   }
 
   // ─── Location helpers ─────────────────────────────────────────────────────
@@ -397,6 +417,10 @@ class _PaymentOptionsScreenState extends State<PaymentOptionsScreen> {
       await _payCashOnDelivery();
       return;
     }
+    if (_paymentMethod == 'wallet') {
+      await _payWithWallet();
+      return;
+    }
 
     setState(() => _isPaying = true);
     try {
@@ -466,6 +490,44 @@ class _PaymentOptionsScreenState extends State<PaymentOptionsScreen> {
       if (mounted) {
         _showSnack(e.toString().replaceFirst('Exception: ', ''),
             Colors.red.shade700);
+      }
+    } finally {
+      if (mounted) setState(() => _isPaying = false);
+    }
+  }
+
+  /// Pays the order from the customer's AquaGas wallet (e.g. refund credit).
+  /// The server checks the balance and charges exactly once.
+  Future<void> _payWithWallet() async {
+    setState(() => _isPaying = true);
+    String? orderId;
+    try {
+      orderId = await _createDraftOrder();
+      final http.Response res = await http.post(
+        Uri.parse('$_baseUrl/orders/$orderId/pay-wallet'),
+        headers: await _headers(),
+        body: json.encode(<String, dynamic>{}),
+      );
+      if (res.statusCode != 200) {
+        String msg = 'Could not pay from wallet (${res.statusCode})';
+        try {
+          final dynamic body = json.decode(res.body);
+          if (body is Map && body['error'] != null) msg = body['error'].toString();
+        } catch (_) {}
+        throw Exception(msg);
+      }
+      if (!mounted) return;
+      _showSnack('Paid from your wallet', Colors.green.shade700);
+      Navigator.pushReplacementNamed(
+        context,
+        '/orderConfirmation',
+        arguments: <String, dynamic>{'orderId': orderId, 'paymentOption': 'Wallet'},
+      );
+    } catch (e) {
+      if (orderId != null) await _cancelDraft(orderId);
+      if (mounted) {
+        _showSnack(e.toString().replaceFirst('Exception: ', ''), Colors.red.shade700);
+        _loadWalletBalance();
       }
     } finally {
       if (mounted) setState(() => _isPaying = false);
@@ -762,7 +824,7 @@ class _PaymentOptionsScreenState extends State<PaymentOptionsScreen> {
           // ── 5. Payment Method ───────────────────────────────────
           _sectionHeader('Payment Method', Icons.payment_outlined),
           const SizedBox(height: 10),
-          _paymentMethodRow(),
+          _paymentMethodRow(total),
           const SizedBox(height: 6),
           _mpesaComingSoonNote(),
           const SizedBox(height: 20),
@@ -1453,7 +1515,7 @@ class _PaymentOptionsScreenState extends State<PaymentOptionsScreen> {
       );
 
   // ─── Payment method row ───────────────────────────────────────────────────
-  Widget _paymentMethodRow() => Column(children: <Widget>[
+  Widget _paymentMethodRow(double total) => Column(children: <Widget>[
         Row(
         children: <Widget>[
           Expanded(
@@ -1479,6 +1541,20 @@ class _PaymentOptionsScreenState extends State<PaymentOptionsScreen> {
           ),
         ],
       ),
+        if (!_isGuest && (_walletBalance ?? 0) > 0) ...<Widget>[
+          const SizedBox(height: 8),
+          _paymentChip(
+            method: 'wallet',
+            label: 'AquaGas wallet',
+            sublabel: (_walletBalance ?? 0) >= total
+                ? 'Balance ${_currency.format(_walletBalance)}'
+                : 'Balance ${_currency.format(_walletBalance)} — not enough for this order',
+            icon: Icons.account_balance_wallet_outlined,
+            iconColor: _kGreen,
+            enabled: (_walletBalance ?? 0) >= total,
+            disabledMessage: 'Your wallet balance is lower than this order total',
+          ),
+        ],
         if (_deliveryType == 'home') ...<Widget>[
           const SizedBox(height: 8),
           _paymentChip(
@@ -1499,13 +1575,14 @@ class _PaymentOptionsScreenState extends State<PaymentOptionsScreen> {
     required Color iconColor,
     String? sublabel,
     String? badge,
+    String? disabledMessage,
     required bool enabled,
   }) {
     final bool selected = _paymentMethod == method;
     return InkWell(
       onTap: enabled
           ? () => setState(() => _paymentMethod = method)
-          : () => _showSnack('$label coming soon!', Colors.orange.shade700),
+          : () => _showSnack(disabledMessage ?? '$label coming soon!', Colors.orange.shade700),
       borderRadius: BorderRadius.circular(10),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
@@ -1621,8 +1698,11 @@ class _PaymentOptionsScreenState extends State<PaymentOptionsScreen> {
   // ─── Proceed button ───────────────────────────────────────────────────────
   Widget _proceedButton(double total) {
     final bool isCod = _paymentMethod == 'cod';
+    final bool isWallet = _paymentMethod == 'wallet';
+    final bool isSasapay = _paymentMethod == 'sasapay';
     final bool ready =
-        (_paymentMethod == 'pesapal' || isCod) && _isScheduleComplete;
+        (_paymentMethod == 'pesapal' || isCod || isWallet || isSasapay) &&
+            _isScheduleComplete;
     return SizedBox(
       width: double.infinity,
       height: 52,
@@ -1650,8 +1730,12 @@ class _PaymentOptionsScreenState extends State<PaymentOptionsScreen> {
                     ready
                         ? (isCod
                             ? 'Place order · pay ${_currency.format(total)} on delivery'
-                            : 'Pay ${_currency.format(total)} via Pesapal')
-                        : (_paymentMethod != 'pesapal' && !isCod)
+                            : isWallet
+                                ? 'Pay ${_currency.format(total)} from wallet'
+                                : isSasapay
+                                    ? 'Pay ${_currency.format(total)} via M-Pesa'
+                                    : 'Pay ${_currency.format(total)} via Pesapal')
+                        : (_paymentMethod != 'pesapal' && !isCod && !isWallet && !isSasapay)
                             ? 'Select a payment method'
                             : 'Select delivery date & time',
                     style: TextStyle(
