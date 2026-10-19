@@ -459,7 +459,7 @@ class _PaymentOptionsScreenState extends State<PaymentOptionsScreen> {
       Navigator.pushReplacementNamed(
         context,
         '/orderConfirmation',
-        arguments: widget.order.copyWith(id: orderId),
+        arguments: <String, dynamic>{'orderId': orderId, 'paymentOption': 'Cash on Delivery'},
       );
     } catch (e) {
       if (orderId != null) await _cancelDraft(orderId);
@@ -502,7 +502,7 @@ class _PaymentOptionsScreenState extends State<PaymentOptionsScreen> {
         Navigator.pushReplacementNamed(
           context,
           '/orderConfirmation',
-          arguments: widget.order.copyWith(id: orderId),
+          arguments: <String, dynamic>{'orderId': orderId, 'paymentOption': 'M-Pesa'},
         );
       } else {
         await _cancelDraft(orderId);
