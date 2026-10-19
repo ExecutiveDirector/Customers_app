@@ -40,6 +40,7 @@ class Routes {
   static const completeProfile = '/complete_profile';
   static const profile = '/profile_screen';
   static const paymentConfirmation = '/payment_confirmation';
+  static const orderConfirmation = '/orderConfirmation';
   static const paymentOptions = '/payment_options';
   static const cart = '/cart';
   static const account = '/account';
@@ -569,6 +570,23 @@ class _MyAppState extends State<MyApp> {
           return PaymentConfirmationScreen(
             paymentOption: args?['paymentOption']?.toString() ?? 'Unknown',
             orderId: args?['orderId']?.toString() ?? '',
+          );
+        },
+        // Used by every checkout path (cash, M-Pesa, card). Accepts either a
+        // map {orderId, paymentOption} or the AppOrder itself.
+        Routes.orderConfirmation: (context) {
+          final args = ModalRoute.of(context)?.settings.arguments;
+          String orderId = '';
+          String option = 'Order';
+          if (args is Map) {
+            orderId = args['orderId']?.toString() ?? '';
+            option = args['paymentOption']?.toString() ?? option;
+          } else if (args is models.AppOrder) {
+            orderId = args.id;
+          }
+          return PaymentConfirmationScreen(
+            paymentOption: option,
+            orderId: orderId,
           );
         },
         Routes.trackOrder: (context) {
