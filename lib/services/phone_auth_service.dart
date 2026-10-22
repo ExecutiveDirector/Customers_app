@@ -40,6 +40,7 @@ class PhoneAuthService {
 
   Future<void> signOut() async {
     await _storage.delete(key: _tokenKey);
+    await _storage.delete(key: 'refresh_token');
     await _storage.delete(key: _userKey);
     await _storage.delete(key: _phoneKey);
   }
@@ -150,6 +151,10 @@ class PhoneAuthService {
       // because this backend omits both fields entirely.
       if (token != null) {
         await _storage.write(key: _tokenKey, value: token);
+        final refresh = data['refreshToken'];
+        if (refresh is String && refresh.isNotEmpty) {
+          await _storage.write(key: 'refresh_token', value: refresh);
+        }
 
         final user = data['user'] as Map<String, dynamic>?;
         if (user != null) {
