@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import '../services/session_service.dart';
 
 class UpdatePasswordScreen extends StatefulWidget {
   const UpdatePasswordScreen({super.key});
@@ -60,7 +61,7 @@ class _UpdatePasswordScreenState extends State<UpdatePasswordScreen> {
       }
 
       // If not in storage, check with backend
-      final token = await _storage.read(key: 'auth_token');
+      final token = await SessionService.validToken();
       if (token == null) {
         setState(() => _isCheckingStatus = false);
         return;
@@ -112,7 +113,7 @@ class _UpdatePasswordScreenState extends State<UpdatePasswordScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final token = await _storage.read(key: 'auth_token');
+      final token = await SessionService.validToken();
       if (token == null) {
         throw Exception('Authentication token not found');
       }
