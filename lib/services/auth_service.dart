@@ -34,8 +34,71 @@ class AuthService {
   }
 
   /// Get stored authentication token
+  ///
+  /// Keeps the customer signed in: if the access token is expired (or about to
+  /// be) it is silently renewed with the stored refresh token. We only give up
+  /// on the session when the server explicitly rejects the refresh token;
+  /// being offline never signs anyone out.
   Future<String?> getToken() async {
-    return await _storage.read(key: _tokenKey);
+    final String? token = await _storage.read(key: _tokenKey);
+    if (token == null || !_isExpiring(token)) return token;
+    final bool ok = await (_refreshing ??= _refreshSession().whenComplete(() => _refreshing = null));
+    return ok ? await _storage.read(key: _tokenKey) : token;
+  }
+
+  static const String _refreshKey = 'refresh_token';
+  static Future<bool>? _refreshing;
+
+  Future<void> _saveRefresh(Map<String, dynamic> data) async {
+    final Object? r = data['refreshToken'];
+    if (r is String && r.isNotEmpty) {
+      await _storage.write(key: _refreshKey, value: r);
+    }
+  }
+
+  bool _isExpiring(String jwt) {
+    try {
+      final List<String> parts = jwt.split('.');
+      if (parts.length != 3) return false;
+      final Map<String, dynamic> payload = jsonDecode(
+          utf8.decode(base64Url.decode(base64Url.normalize(parts[1])))) as Map<String, dynamic>;
+      final int? exp = (payload['exp'] as num?)?.toInt();
+      if (exp == null) return false;
+      final int now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+      return exp - now < 120; // renew when under 2 minutes left
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> _refreshSession() async {
+    final String? refresh = await _storage.read(key: _refreshKey);
+    if (refresh == null || refresh.isEmpty) return false;
+    try {
+      final http.Response res = await http
+          .post(
+            Uri.parse('$_baseUrl/refresh'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({'refreshToken': refresh}),
+          )
+          .timeout(const Duration(seconds: 20));
+      if (res.statusCode == 200) {
+        final Map<String, dynamic> data = jsonDecode(res.body) as Map<String, dynamic>;
+        final String? t = data['token'] as String?;
+        if (t == null) return false;
+        await _storage.write(key: _tokenKey, value: t);
+        await _saveRefresh(data);
+        return true;
+      }
+      if (res.statusCode == 401 || res.statusCode == 403) {
+        // Server says this session is over (deactivated / revoked): sign out.
+        await _storage.delete(key: _tokenKey);
+        await _storage.delete(key: _refreshKey);
+      }
+      return false;
+    } catch (_) {
+      return false; // offline: keep the session
+    }
   }
 
 // In lib/services/auth_service.dart
@@ -132,6 +195,7 @@ class AuthService {
 
         // Store authentication data
         await _storage.write(key: _tokenKey, value: token);
+        await _saveRefresh(data);
         await _storage.write(key: _userKey, value: jsonEncode(userData));
 
         print('✅ Login successful');
@@ -257,6 +321,7 @@ class AuthService {
 
         // Store authentication data
         await _storage.write(key: _tokenKey, value: token);
+        await _saveRefresh(data);
         await _storage.write(
             key: _userKey, value: jsonEncode(data)); // Store complete response
 
@@ -375,6 +440,7 @@ class AuthService {
         }
 
         await _storage.write(key: _tokenKey, value: token);
+        await _saveRefresh(data);
         await _storage.write(key: _userKey, value: jsonEncode(vendor));
 
         return <String, dynamic>{
@@ -442,6 +508,7 @@ class AuthService {
         }
 
         await _storage.write(key: _tokenKey, value: token);
+        await _saveRefresh(data);
         await _storage.write(key: _userKey, value: jsonEncode(rider));
 
         return <String, dynamic>{
@@ -495,6 +562,7 @@ class AuthService {
   /// Clear all stored auth data
   Future<void> logout() async {
     await _storage.delete(key: _tokenKey);
+        await _storage.delete(key: _refreshKey);
     await _storage.delete(key: _userKey);
     await _storage.delete(key: 'profile_completed');
     await _storage.delete(key: 'password_set');
@@ -522,6 +590,7 @@ class AuthService {
     } finally {
       // Always clear local storage
       await _storage.delete(key: _tokenKey);
+        await _storage.delete(key: _refreshKey);
       await _storage.delete(key: _userKey);
     }
   }
@@ -877,7 +946,12 @@ class AuthService {
         throw AuthException('Profile not found. Please contact support.');
       } else if (response.statusCode == 401) {
         // Token expired or invalid
+        // Try a silent renewal first; only end the session if that is refused.
+        if (await _refreshSession()) {
+          throw AuthException('Please try again.');
+        }
         await _storage.delete(key: _tokenKey);
+        await _storage.delete(key: _refreshKey);
         await _storage.delete(key: _userKey);
         throw AuthException('Session expired. Please login again.');
       } else {
@@ -998,7 +1072,12 @@ class AuthService {
       } else if (response.statusCode == 404) {
         throw AuthException('Profile not found. Please contact support.');
       } else if (response.statusCode == 401) {
+        // Try a silent renewal first; only end the session if that is refused.
+        if (await _refreshSession()) {
+          throw AuthException('Please try again.');
+        }
         await _storage.delete(key: _tokenKey);
+        await _storage.delete(key: _refreshKey);
         await _storage.delete(key: _userKey);
         throw AuthException('Session expired. Please login again.');
       } else {
@@ -1063,7 +1142,12 @@ class AuthService {
         }
         return avatarUrl;
       } else if (response.statusCode == 401) {
+        // Try a silent renewal first; only end the session if that is refused.
+        if (await _refreshSession()) {
+          throw AuthException('Please try again.');
+        }
         await _storage.delete(key: _tokenKey);
+        await _storage.delete(key: _refreshKey);
         await _storage.delete(key: _userKey);
         throw AuthException('Session expired. Please login again.');
       } else {
