@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'session_service.dart';
 
 /// Result model for OTP verification.
 class OtpVerifyResult {
@@ -30,7 +31,7 @@ class PhoneAuthService {
   static const String _userKey = 'user_data';
   static const String _phoneKey = 'temp_phone';
 
-  Future<String?> getToken() => _storage.read(key: _tokenKey);
+  Future<String?> getToken() => SessionService.validToken();
 
   Future<Map<String, dynamic>?> getCurrentUser() async {
     final json = await _storage.read(key: _userKey);
@@ -40,6 +41,7 @@ class PhoneAuthService {
 
   Future<void> signOut() async {
     await _storage.delete(key: _tokenKey);
+    await SessionService.clearRefreshToken();
     await _storage.delete(key: _userKey);
     await _storage.delete(key: _phoneKey);
   }
@@ -150,6 +152,7 @@ class PhoneAuthService {
       // because this backend omits both fields entirely.
       if (token != null) {
         await _storage.write(key: _tokenKey, value: token);
+        await SessionService.saveRefreshToken(data['refreshToken']);
 
         final user = data['user'] as Map<String, dynamic>?;
         if (user != null) {

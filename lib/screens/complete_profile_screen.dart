@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:aquagas/screens/home/home_page.dart';
 import 'package:aquagas/widgets/profile/profile_image_picker.dart';
+import '../services/session_service.dart';
 
 /// Complete Profile Screen - After phone OTP verification
 class CompleteProfileScreen extends StatefulWidget {
@@ -165,6 +166,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
 
         if (token != null) {
           await _storage.write(key: 'auth_token', value: token);
+          await SessionService.saveRefreshToken(data['refreshToken']);
           await _storage.write(
               key: 'password_set', value: passwordSet.toString());
           debugPrint('Auth token saved, password_set: $passwordSet');
