@@ -582,6 +582,8 @@ class AuthService {
             'Content-Type': 'application/json',
             'Authorization': 'Bearer $token',
           },
+          // Lets the server end the long-lived session as well.
+          body: jsonEncode({'refreshToken': await _storage.read(key: _refreshKey)}),
         ).timeout(const Duration(seconds: 10));
       }
     } catch (e) {
