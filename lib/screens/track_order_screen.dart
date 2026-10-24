@@ -19,6 +19,8 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:aquagas/app.dart';
 import 'package:aquagas/services/auth_service.dart';
 import 'package:aquagas/services/order_service.dart';
+import 'package:aquagas/services/cod_payment_service.dart';
+import 'package:aquagas/screens/cod_payment_screen.dart';
 import 'package:aquagas/widgets/drawer.dart';
 
 // ─── Palette ─────────────────────────────────────────────────────────────────
@@ -71,6 +73,7 @@ class _TrackOrderScreenState extends State<TrackOrderScreen> {
   // since it changes much more often than the order status/details.
   LatLng? _riderLocation;
   Timer? _riderLocationTimer;
+  CodPaymentWatcher? _codWatcher;
 
   // Default centre: Nairobi CBD
   static const LatLng _kNairobi = LatLng(-1.2921, 36.8219);
@@ -87,6 +90,7 @@ class _TrackOrderScreenState extends State<TrackOrderScreen> {
   void dispose() {
     _pollSub?.cancel();
     _riderLocationTimer?.cancel();
+    _codWatcher?.stop();
     _mapController?.dispose();
     super.dispose();
   }
@@ -109,6 +113,16 @@ class _TrackOrderScreenState extends State<TrackOrderScreen> {
     await _fetchOrder();
     _startPolling();
     _startRiderLocationPolling();
+    // Rider asked for M-Pesa at the door (cash-on-delivery orders): open the pay prompt screen.
+    _codWatcher = CodPaymentWatcher(
+      orderId: widget.orderId,
+      onRequested: (CodPaymentStatus s) async {
+        if (!mounted) return;
+        await Navigator.of(context).push(MaterialPageRoute<bool>(
+            builder: (_) => CodPaymentScreen(orderId: widget.orderId, initial: s)));
+        _codWatcher?.reset();
+      },
+    )..start(every: const Duration(seconds: 6));
   }
 
   Future<void> _ensureLocationPermission() async {

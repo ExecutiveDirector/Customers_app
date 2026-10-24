@@ -6,6 +6,8 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:aquagas/app.dart';
 import 'package:aquagas/services/auth_service.dart';
 import 'package:aquagas/services/order_service.dart';
+import 'package:aquagas/services/cod_payment_service.dart';
+import 'package:aquagas/screens/cod_payment_screen.dart';
 
 class PaymentConfirmationScreen extends StatefulWidget {
   final String paymentOption;
@@ -33,6 +35,13 @@ class _PaymentConfirmationScreenState extends State<PaymentConfirmationScreen> {
   models.AppOrder? _order;
   String? _errorMessage;
   bool _isGuest = false;
+  bool _loadFailed = false; // signed in, but the details could not be loaded
+  CodPaymentWatcher? _codWatcher;
+
+  bool get _isCash {
+    final String o = widget.paymentOption.toLowerCase();
+    return o.contains('cash') || o.contains('cod');
+  }
 
   final AuthService _authService = AuthService();
   final OrderService _orderService = OrderService();
@@ -41,6 +50,24 @@ class _PaymentConfirmationScreenState extends State<PaymentConfirmationScreen> {
   void initState() {
     super.initState();
     _initializeOrder();
+    if (_isCash) {
+      // If the rider asks for M-Pesa at the door, open the pay screen for the customer.
+      _codWatcher = CodPaymentWatcher(orderId: widget.orderId, onRequested: _openCodPayment)..start();
+    }
+  }
+
+  @override
+  void dispose() {
+    _codWatcher?.stop();
+    super.dispose();
+  }
+
+  Future<void> _openCodPayment(CodPaymentStatus s) async {
+    if (!mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute<bool>(builder: (_) => CodPaymentScreen(orderId: widget.orderId, initial: s)),
+    );
+    _codWatcher?.reset();
   }
 
   Future<void> _initializeOrder() async {
@@ -62,6 +89,7 @@ class _PaymentConfirmationScreenState extends State<PaymentConfirmationScreen> {
     setState(() {
       _isLoading = true;
       _errorMessage = null;
+      _loadFailed = false;
     });
 
     try {
@@ -113,8 +141,8 @@ class _PaymentConfirmationScreenState extends State<PaymentConfirmationScreen> {
       if (mounted) {
         setState(() {
           _isLoading = false;
-          _isGuest = true;
-          _errorMessage = 'Order confirmed! Sign in to view full details.';
+          _loadFailed = true; // signed in: never ask them to sign in again
+          _errorMessage = null;
         });
 
         debugPrint('Error fetching order details: $e');
@@ -130,7 +158,7 @@ class _PaymentConfirmationScreenState extends State<PaymentConfirmationScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Payment Confirmation',
+        title: Text(_isCash ? 'Order Confirmed' : 'Payment Confirmation',
             style: TextStyle(color: Colors.white)),
         backgroundColor: Colors.green,
         elevation: 0,
@@ -162,15 +190,21 @@ class _PaymentConfirmationScreenState extends State<PaymentConfirmationScreen> {
               const Icon(Icons.verified_rounded,
                   color: Colors.green, size: 100),
               const SizedBox(height: 16),
-              const Text(
-                'Payment Successful!',
-                style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
+              Text(
+                _isCash ? 'Order placed!' : 'Payment Successful!',
+                style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
               ),
-              const SizedBox(height: 30),
+              if (_isCash) ...<Widget>[
+                const SizedBox(height: 16),
+                _buildPayOnDeliveryCard(),
+              ],
+              const SizedBox(height: 24),
 
               // ✅ GUEST MODE: Show guest notice if applicable
               if (_isGuest && _order == null)
                 _buildGuestNotice()
+              else if (_loadFailed && _order == null)
+                _buildLoadFailedCard()
               else if (_order != null)
                 _buildOrderDetails(currencyFormatter, dateFormatter),
 
@@ -178,6 +212,61 @@ class _PaymentConfirmationScreenState extends State<PaymentConfirmationScreen> {
               _buildActionButtons(),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPayOnDeliveryCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFD1FAE5),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: const <Widget>[
+          Row(children: <Widget>[
+            Icon(Icons.payments_outlined, color: Color(0xFF064E3B)),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text('Pay when your gas arrives',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF064E3B))),
+            ),
+          ]),
+          SizedBox(height: 8),
+          Text(
+            'Hand the rider cash, or pay by M-Pesa — your rider can send a payment '
+            'prompt to your phone and you just enter your PIN. Keep your phone nearby.',
+            style: TextStyle(fontSize: 14, height: 1.35),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLoadFailedCard() {
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      elevation: 4,
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          children: <Widget>[
+            const Icon(Icons.cloud_off_rounded, size: 40, color: Colors.grey),
+            const SizedBox(height: 10),
+            const Text('Your order is placed. We could not load the details just now.',
+                textAlign: TextAlign.center),
+            const SizedBox(height: 10),
+            _detailRow(Icons.receipt_long, 'Order ID', widget.orderId),
+            TextButton.icon(
+              onPressed: _fetchOrderDetails,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Try again'),
+            ),
+          ],
         ),
       ),
     );
@@ -328,7 +417,7 @@ class _PaymentConfirmationScreenState extends State<PaymentConfirmationScreen> {
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
-        onPressed: _order != null && _order!.id.isNotEmpty
+        onPressed: widget.orderId.isNotEmpty
             ? () {
                 if (mounted) {
                   Navigator.pushNamed(context, Routes.trackOrder,
