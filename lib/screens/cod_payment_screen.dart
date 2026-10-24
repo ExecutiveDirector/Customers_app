@@ -64,9 +64,7 @@ class _CodPaymentScreenState extends State<CodPaymentScreen> {
   @override
   Widget build(BuildContext context) {
     final String st = _status.isPaid ? 'paid' : _status.state;
-    return PopScope(
-      canPop: true,
-      child: Scaffold(
+    return Scaffold(
         backgroundColor: Colors.white,
         appBar: AppBar(
           title: const Text('M-Pesa payment', style: TextStyle(color: Colors.white)),
@@ -105,7 +103,6 @@ class _CodPaymentScreenState extends State<CodPaymentScreen> {
             ),
           ),
         ),
-      ),
     );
   }
 
