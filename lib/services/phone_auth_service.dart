@@ -63,7 +63,7 @@ class PhoneAuthService {
         throw AuthException('Connection timeout. Please try again.');
       });
 
-      print('📡 [sendOTP] status=${res.statusCode} body=${res.body}');
+      print('📡 [sendOTP] status=${res.statusCode}');
 
       if (res.statusCode == 200) {
         await _storage.write(key: _phoneKey, value: phone);
@@ -98,7 +98,7 @@ class PhoneAuthService {
     _assertOtp(otp);
 
     try {
-      print('🔵 [verifyOTP] phone=$phone otp=$otp');
+      print('🔵 [verifyOTP] verifying code');
 
       final res = await http
           .post(
@@ -112,7 +112,7 @@ class PhoneAuthService {
 
       // ── Log the FULL raw response so we can see exactly what backend sends ──
       print('📡 [verifyOTP] status=${res.statusCode}');
-      print('📡 [verifyOTP] raw body=${res.body}');
+      
 
       if (res.statusCode != 200) {
         throw AuthException(_parseError(res));

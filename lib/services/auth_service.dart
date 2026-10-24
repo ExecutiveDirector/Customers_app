@@ -170,7 +170,7 @@ class AuthService {
       );
 
       print('📡 Response status: ${response.statusCode}');
-      print('📡 Response body: ${response.body}');
+      assert(() { print('📡 Response body: ${response.body}'); return true; }()); // debug builds only
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> data =
@@ -299,7 +299,7 @@ class AuthService {
       );
 
       print('📡 Response status: ${response.statusCode}');
-      print('📡 Response body: ${response.body}');
+      assert(() { print('📡 Response body: ${response.body}'); return true; }()); // debug builds only
 
       if (response.statusCode == 201) {
         final Map<String, dynamic> data =
@@ -660,7 +660,7 @@ class AuthService {
       );
 
       print('📡 Response status: ${response.statusCode}');
-      print('📡 Response body: ${response.body}');
+      assert(() { print('📡 Response body: ${response.body}'); return true; }()); // debug builds only
 
       if (response.statusCode == 200) {
         // Success - email sent (backend returns 200)
@@ -728,7 +728,7 @@ class AuthService {
       );
 
       print('📡 Response status: ${response.statusCode}');
-      print('📡 Response body: ${response.body}');
+      assert(() { print('📡 Response body: ${response.body}'); return true; }()); // debug builds only
 
       if (response.statusCode == 200) {
         print('✅ Password reset successful');
@@ -812,7 +812,7 @@ class AuthService {
       );
 
       print('📡 Response status: ${response.statusCode}');
-      print('📡 Response body: ${response.body}');
+      assert(() { print('📡 Response body: ${response.body}'); return true; }()); // debug builds only
 
       if (response.statusCode == 200) {
         print('✅ Password changed successfully');
