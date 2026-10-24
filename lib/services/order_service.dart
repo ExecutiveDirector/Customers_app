@@ -2,6 +2,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:aquagas/services/auth_service.dart';
 import 'package:aquagas/services/error_reporting_service.dart';
 import 'dart:async' show Future, TimeoutException;
@@ -11,6 +12,28 @@ import 'dart:async' show Future, TimeoutException;
 class OrderService {
   static const String _baseUrl = 'https://aquagas-backend.onrender.com/api/v1';
   final AuthService _authService = AuthService();
+
+  // Guest orders: the backend returns an `order_access_token` when it creates an
+  // order without a login. It must be sent back (header `x-order-token`) to view,
+  // pay for, confirm or cancel that order. Stored per order in the platform keystore.
+  static const FlutterSecureStorage _orderTokens = FlutterSecureStorage(
+    aOptions: AndroidOptions(encryptedSharedPreferences: true),
+  );
+
+  Future<void> _saveOrderToken(String orderId, dynamic token) async {
+    if (token is! String || token.isEmpty) return;
+    try {
+      await _orderTokens.write(key: 'order_token_$orderId', value: token);
+    } catch (_) {/* keystore unavailable: guest can still sign in to see the order */}
+  }
+
+  Future<String?> _orderToken(String orderId) async {
+    try {
+      return await _orderTokens.read(key: 'order_token_$orderId');
+    } catch (_) {
+      return null;
+    }
+  }
 
   // =========================================================================
   // Helper: Error logging
@@ -105,7 +128,7 @@ class OrderService {
           );
 
       debugPrint('Response Status: ${response.statusCode}');
-      debugPrint('Response Body: ${response.body}');
+      assert(() { debugPrint('Response Body: ${response.body}'); return true; }()); // debug builds only
 
       if (response.body.trim().startsWith('<!DOCTYPE') ||
           response.body.trim().startsWith('<html')) {
@@ -130,6 +153,8 @@ class OrderService {
           throw Exception('Draft order created but no ID returned.');
         }
 
+        await _saveOrderToken(orderId,
+            data['order']?['order_access_token'] ?? data['order_access_token']);
         debugPrint('Draft order created: $orderId');
         return orderId;
       } else {
@@ -230,7 +255,7 @@ class OrderService {
           );
 
       debugPrint('Response Status: ${response.statusCode}');
-      debugPrint('Response Body: ${response.body}');
+      assert(() { debugPrint('Response Body: ${response.body}'); return true; }()); // debug builds only
 
       // Check if response is HTML
       if (response.body.trim().startsWith('<!DOCTYPE') ||
@@ -270,6 +295,8 @@ class OrderService {
         }
 
         debugPrint('Order created successfully: $orderId');
+        await _saveOrderToken(orderId,
+            data['order']?['order_access_token'] ?? data['order_access_token']);
         return orderId;
       } else {
         final String errorMsg = (data['message'] ??
@@ -338,7 +365,10 @@ class OrderService {
       debugPrint('Initiating payment for order: $orderId');
 
       final String? token = await _authService.getToken();
-      if (token == null) throw Exception('Not authenticated');
+      final String? orderToken = await _orderToken(orderId);
+      if (token == null && orderToken == null) {
+        throw Exception('Not authenticated');
+      }
 
       final Map<String, dynamic> payload = <String, dynamic>{
         'order_id': orderId,
@@ -354,7 +384,8 @@ class OrderService {
             headers: <String, String>{
               'Content-Type': 'application/json',
               'Accept': 'application/json',
-              'Authorization': 'Bearer $token',
+              if (token != null) 'Authorization': 'Bearer $token',
+              if (orderToken != null) 'x-order-token': orderToken,
             },
             body: jsonEncode(payload),
           )
@@ -365,7 +396,7 @@ class OrderService {
           );
 
       debugPrint('Response Status: ${response.statusCode}');
-      debugPrint('Response Body: ${response.body}');
+      assert(() { debugPrint('Response Body: ${response.body}'); return true; }()); // debug builds only
 
       if (response.body.trim().startsWith('<!DOCTYPE') ||
           response.body.trim().startsWith('<html')) {
@@ -415,7 +446,10 @@ class OrderService {
       debugPrint('Confirming order payment: $orderId');
 
       final String? token = await _authService.getToken();
-      if (token == null) throw Exception('Not authenticated');
+      final String? orderToken = await _orderToken(orderId);
+      if (token == null && orderToken == null) {
+        throw Exception('Not authenticated');
+      }
 
       final Map<String, dynamic> payload = <String, dynamic>{
         'payment_tracking_id': paymentTrackingId,
@@ -433,7 +467,8 @@ class OrderService {
             headers: <String, String>{
               'Content-Type': 'application/json',
               'Accept': 'application/json',
-              'Authorization': 'Bearer $token',
+              if (token != null) 'Authorization': 'Bearer $token',
+              if (orderToken != null) 'x-order-token': orderToken,
             },
             body: jsonEncode(payload),
           )
@@ -444,7 +479,7 @@ class OrderService {
           );
 
       debugPrint('Response Status: ${response.statusCode}');
-      debugPrint('Response Body: ${response.body}');
+      assert(() { debugPrint('Response Body: ${response.body}'); return true; }()); // debug builds only
 
       if (response.body.trim().startsWith('<!DOCTYPE') ||
           response.body.trim().startsWith('<html')) {
@@ -550,7 +585,10 @@ class OrderService {
       debugPrint('Cancelling draft order: $orderId');
 
       final String? token = await _authService.getToken();
-      if (token == null) throw Exception('Not authenticated');
+      final String? orderToken = await _orderToken(orderId);
+      if (token == null && orderToken == null) {
+        throw Exception('Not authenticated');
+      }
 
       final Map<String, dynamic> payload = <String, dynamic>{};
       if (cancellationReason != null) {
@@ -563,7 +601,8 @@ class OrderService {
             headers: <String, String>{
               'Content-Type': 'application/json',
               'Accept': 'application/json',
-              'Authorization': 'Bearer $token',
+              if (token != null) 'Authorization': 'Bearer $token',
+              if (orderToken != null) 'x-order-token': orderToken,
             },
             body: payload.isNotEmpty ? jsonEncode(payload) : null,
           )
@@ -620,19 +659,23 @@ class OrderService {
       debugPrint('Fetching order: $orderId');
 
       final String? token = await _authService.getToken();
+      final String? orderToken = await _orderToken(orderId);
 
-      if (token == null && orderId.startsWith('GUEST-')) {
+      if (token == null && orderToken == null && orderId.startsWith('GUEST-')) {
         throw Exception('Please sign in to view order details');
       }
 
-      if (token == null) throw Exception('Not authenticated');
+      if (token == null && orderToken == null) {
+        throw Exception('Not authenticated');
+      }
 
       final http.Response response = await http.get(
         Uri.parse('$_baseUrl/orders/$orderId'),
         headers: <String, String>{
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          'Authorization': 'Bearer $token',
+          if (token != null) 'Authorization': 'Bearer $token',
+              if (orderToken != null) 'x-order-token': orderToken,
         },
       ).timeout(
         const Duration(seconds: 15),
@@ -641,7 +684,7 @@ class OrderService {
       );
 
       debugPrint('Response Status: ${response.statusCode}');
-      debugPrint('Response Body: ${response.body}');
+      assert(() { debugPrint('Response Body: ${response.body}'); return true; }()); // debug builds only
 
       if (response.body.trim().startsWith('<!DOCTYPE') ||
           response.body.trim().startsWith('<html')) {
@@ -692,14 +735,16 @@ class OrderService {
   Future<Map<String, dynamic>?> getOrderRiderLocation(String orderId) async {
     try {
       final String? token = await _authService.getToken();
-      if (token == null) return null;
+      final String? orderToken = await _orderToken(orderId);
+      if (token == null && orderToken == null) return null;
 
       final http.Response response = await http.get(
         Uri.parse('$_baseUrl/orders/$orderId/rider-location'),
         headers: <String, String>{
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          'Authorization': 'Bearer $token',
+          if (token != null) 'Authorization': 'Bearer $token',
+              if (orderToken != null) 'x-order-token': orderToken,
         },
       ).timeout(const Duration(seconds: 10));
 
@@ -1211,7 +1256,7 @@ class OrderService {
           );
 
       debugPrint('Response Status: ${response.statusCode}');
-      debugPrint('Response Body: ${response.body}');
+      assert(() { debugPrint('Response Body: ${response.body}'); return true; }()); // debug builds only
 
       if (response.body.trim().startsWith('<!DOCTYPE') ||
           response.body.trim().startsWith('<html')) {
