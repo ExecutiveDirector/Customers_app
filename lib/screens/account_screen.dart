@@ -19,6 +19,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 
 import 'package:aquagas/services/account_service.dart';
 import 'package:aquagas/services/auth_service.dart';
+import 'package:aquagas/screens/wallet_topup_screen.dart';
 import 'package:aquagas/theme/app_colors.dart';
 
 class AccountPage extends StatefulWidget {
@@ -520,6 +521,29 @@ class _AccountPageState extends State<AccountPage> {
                 child: _WalletMiniStat(label: 'Spent', value: _formatCurrency(s.walletTotalSpent)),
               ),
             ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.white,
+                side: const BorderSide(color: Colors.white70),
+              ),
+              icon: const Icon(Icons.add_circle_outline),
+              label: const Text('Top up wallet'),
+              onPressed: () async {
+                final bool? added = await Navigator.of(context).push<bool>(
+                  MaterialPageRoute<bool>(builder: (_) => const WalletTopUpScreen()),
+                );
+                if (added == true && mounted) {
+                  _load();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Wallet topped up')),
+                  );
+                }
+              },
+            ),
           ),
           const SizedBox(height: AppSpacing.md),
           if (_walletTxns.isNotEmpty) ...<Widget>[
