@@ -306,6 +306,50 @@ class AccountService {
     return Exception('Something went wrong. Please try again.');
   }
 
+  static const String _paymentsUrl = 'https://aquagas-backend.onrender.com/api/v1/payments';
+
+  /// Starts a wallet top-up. Returns the Pesapal page to open and the tracking id to verify afterwards.
+  Future<({String redirectUrl, String trackingId})> startTopUp(double amount) async {
+    try {
+      final http.Response response = await http
+          .post(
+            Uri.parse('$_paymentsUrl/wallet/topup'),
+            headers: await _headers(),
+            body: jsonEncode(<String, dynamic>{'amount': amount, 'payment_method': 'pesapal'}),
+          )
+          .timeout(const Duration(seconds: 30));
+      final Map<String, dynamic> body = jsonDecode(response.body) as Map<String, dynamic>;
+      if (response.statusCode == 200 && body['success'] == true) {
+        final Map<String, dynamic> p = body['payment'] as Map<String, dynamic>;
+        final String url = (p['redirect_url'] ?? '').toString();
+        final String id = (p['order_tracking_id'] ?? '').toString();
+        if (url.isEmpty || id.isEmpty) throw Exception('Payment page unavailable. Please try again.');
+        return (redirectUrl: url, trackingId: id);
+      }
+      throw Exception((body['error'] ?? 'Could not start the top-up.').toString());
+    } catch (e) {
+      throw _friendlyError(e);
+    }
+  }
+
+  /// Asks the server to check the payment with Pesapal. The server credits the wallet exactly once.
+  /// Returns 'completed', 'failed' or 'pending'.
+  Future<String> verifyTopUp(String trackingId) async {
+    try {
+      final http.Response response = await http
+          .get(Uri.parse('$_paymentsUrl/status/$trackingId'), headers: await _headers())
+          .timeout(const Duration(seconds: 20));
+      if (response.statusCode != 200) return 'pending';
+      final Map<String, dynamic> body = jsonDecode(response.body) as Map<String, dynamic>;
+      final Map<String, dynamic>? ps = body['payment_status'] as Map<String, dynamic>?;
+      if (ps?['is_paid'] == true) return 'completed';
+      if (ps?['is_failed'] == true) return 'failed';
+      return 'pending';
+    } catch (_) {
+      return 'pending';
+    }
+  }
+
   Future<AccountSummary> getAccountSummary() async {
     try {
       final http.Response response = await http
