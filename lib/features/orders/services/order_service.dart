@@ -1,5 +1,6 @@
 import 'package:aquagas/features/orders/models/order_model.dart';
 import 'package:aquagas/services/order_service.dart' as base_service;
+import 'package:aquagas/services/review_service.dart';
 
 /// Thin wrapper around the existing OrderService that returns typed models
 /// used by the features/orders layer.
@@ -35,5 +36,19 @@ class OrderService {
   /// Cancel an order.
   Future<void> cancelOrder(String orderId, String reason) async {
     await _base.cancelOrder(orderId, reason: reason);
+  }
+
+  /// Rates the order's overall experience (a platform review tied to the order).
+  Future<void> submitReview({
+    required String orderId,
+    required int rating,
+    required String review,
+  }) async {
+    await ReviewService().submitReview(
+      orderId: orderId,
+      type: ReviewType.platform,
+      overallRating: rating.toDouble(),
+      text: review,
+    );
   }
 }
