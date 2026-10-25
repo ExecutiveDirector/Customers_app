@@ -10,7 +10,6 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  sentry_flutter: ^8.14.2
 
   # Firebase & Utils
   supabase_flutter: ^2.9.1
