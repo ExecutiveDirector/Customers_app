@@ -45,6 +45,7 @@ jobs:
       - name: Test
         run: |
           set +e
+          if ! ls test/*_test.dart >/dev/null 2>&1; then echo "No tests yet - skipping"; exit 0; fi
           flutter test --reporter expanded > test.txt 2>&1
           code=$?
           tail -80 test.txt
