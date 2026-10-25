@@ -165,6 +165,11 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
 
         if (token != null) {
           await _storage.write(key: 'auth_token', value: token);
+          // Without this the customer is signed out as soon as the access token expires.
+          final Object? refresh = data['refreshToken'];
+          if (refresh is String && refresh.isNotEmpty) {
+            await _storage.write(key: 'refresh_token', value: refresh);
+          }
           await _storage.write(
               key: 'password_set', value: passwordSet.toString());
           debugPrint('Auth token saved, password_set: $passwordSet');

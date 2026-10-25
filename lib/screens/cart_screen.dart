@@ -1,5 +1,6 @@
 // lib/screens/cart_screen.dart
 import 'package:flutter/material.dart';
+import 'package:aquagas/app.dart' show Routes;
 import 'package:aquagas/cart.dart';
 import 'package:aquagas/app_order.dart' as models;
 import 'package:aquagas/services/auth_service.dart';
@@ -337,7 +338,7 @@ class _CartScreenState extends State<CartScreen> {
               ),
             ),
             TextButton(
-              onPressed: () => Navigator.pushNamed(context, '/signIn'),
+              onPressed: () => Navigator.pushNamed(context, Routes.signIn),
               style: TextButton.styleFrom(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
