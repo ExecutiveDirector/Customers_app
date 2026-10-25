@@ -23,6 +23,9 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
+import 'package:aquagas/app.dart';
+import 'package:aquagas/main.dart' show navigatorKey;
+
 import 'notification_service.dart';
 
 class PushNotificationManager {
@@ -95,6 +98,12 @@ class PushNotificationManager {
       // foreground — show one ourselves via flutter_local_notifications.
       FirebaseMessaging.onMessage.listen(_showForegroundNotification);
 
+      // Tapping a push (app in background or closed) opens the order screen;
+      // for an M-Pesa payment request that screen shows the pay prompt.
+      FirebaseMessaging.onMessageOpenedApp.listen(_openFromMessage);
+      final RemoteMessage? initial = await messaging.getInitialMessage();
+      if (initial != null) _openFromMessage(initial);
+
       _initialized = true;
       debugPrint('✅ Push notifications initialized, token registered.');
     } catch (e) {
@@ -110,12 +119,29 @@ class PushNotificationManager {
 
     await _localNotifications.initialize(
       const InitializationSettings(android: androidInit, iOS: iosInit),
+      onDidReceiveNotificationResponse: (NotificationResponse r) {
+        final String? orderId = r.payload;
+        if (orderId != null && orderId.isNotEmpty) _openOrder(orderId);
+      },
     );
 
     await _localNotifications
         .resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>()
         ?.createNotificationChannel(_channel);
+  }
+
+  void _openFromMessage(RemoteMessage message) {
+    final String type = '${message.data['type'] ?? ''}';
+    final String orderId = '${message.data['order_id'] ?? ''}';
+    if (orderId.isEmpty) return;
+    if (type == 'cod_payment' || type == 'delivery_update' || type == 'order_update') {
+      _openOrder(orderId);
+    }
+  }
+
+  void _openOrder(String orderId) {
+    navigatorKey.currentState?.pushNamed(Routes.trackOrder, arguments: orderId);
   }
 
   void _showForegroundNotification(RemoteMessage message) {
@@ -136,6 +162,7 @@ class PushNotificationManager {
         ),
         iOS: const DarwinNotificationDetails(),
       ),
+      payload: '${message.data['type']}' == 'cod_payment' ? '${message.data['order_id'] ?? ''}' : null,
     );
   }
 
