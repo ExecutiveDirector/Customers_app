@@ -13,6 +13,7 @@
 //
 // OrderService.logError() previously had its own private copy of this same
 // POST call — it now delegates here so there's a single implementation.
+import 'package:sentry_flutter/sentry_flutter.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
@@ -41,6 +42,16 @@ class ErrorReportingService {
     if (stackTrace != null) {
       debugPrint(stackTrace.toString());
     }
+
+    // Sentry (no-op when no DSN was configured at build time).
+    try {
+      unawaited(Sentry.captureException(error, stackTrace: stackTrace,
+          withScope: (scope) {
+        scope.setTag('context', context);
+        if (orderId != null) scope.setTag('order_id', orderId);
+        scope.level = fatal ? SentryLevel.fatal : SentryLevel.error;
+      }));
+    } catch (_) {}
 
     unawaited(_report(
       context: context,

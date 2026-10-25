@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 
 import 'package:aquagas/widgets/order_provider.dart' as provider;
 import 'package:aquagas/src/core/theme_provider.dart';
@@ -22,6 +23,20 @@ Future<void> main() async {
   // still reach ErrorReportingService instead of going unreported.
   runZonedGuarded<Future<void>>(() async {
     WidgetsFlutterBinding.ensureInitialized();
+
+    // Sentry: off unless built with --dart-define=SENTRY_DSN=...
+    // Errors reach it through ErrorReportingService.logError (below).
+    try {
+      await SentryFlutter.init((o) {
+        o.dsn = const String.fromEnvironment('SENTRY_DSN');
+        o.environment = const String.fromEnvironment('APP_ENV', defaultValue: 'production');
+        o.sendDefaultPii = false;
+        o.attachScreenshot = false;
+        o.tracesSampleRate = 0;
+      });
+    } catch (e) {
+      debugPrint('⚠️ Sentry init failed (non-fatal): $e');
+    }
 
     // google-services.json is in place and matches applicationId
     // com.Aquagas.customer, so this should succeed — but it's still
