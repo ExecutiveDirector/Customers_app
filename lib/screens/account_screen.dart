@@ -105,6 +105,50 @@ class _AccountPageState extends State<AccountPage> {
     return '${months[date.month - 1]} ${date.day}, ${date.year}';
   }
 
+  /// Points -> wallet cash, which can pay for any order at checkout.
+  Future<void> _convertPoints(int points) async {
+    final rules = await _service.getLoyaltyRules();
+    if (!mounted) return;
+    if (points < rules.minConvert) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('You need at least ${rules.minConvert} points to convert.')),
+      );
+      return;
+    }
+    final double kes = points * rules.pointValueKes;
+    final bool? ok = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext c) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
+        title: const Text('Convert points to wallet cash?'),
+        content: Text('$points points will become KES ${kes.toStringAsFixed(0)} in your wallet. '
+            'You can use it to pay for your next order.'),
+        actions: <Widget>[
+          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(c, true),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.brand, foregroundColor: Colors.white),
+            child: const Text('Convert'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      final double added = await _service.convertPoints(points);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('KES ${added.toStringAsFixed(0)} added to your wallet'), backgroundColor: AppColors.success),
+      );
+      await _load();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    }
+  }
+
   Future<void> _redeem(LoyaltyReward reward) async {
     final bool? confirmed = await showDialog<bool>(
       context: context,
@@ -651,6 +695,15 @@ class _AccountPageState extends State<AccountPage> {
                     ? '${nextTier - s.loyaltyPoints} points to your next reward'
                     : 'You can redeem a reward right now!',
                 style: const TextStyle(fontSize: 12, color: AppColors.slate500),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: OutlinedButton.icon(
+                  onPressed: s.loyaltyPoints > 0 ? () => _convertPoints(s.loyaltyPoints) : null,
+                  icon: const Icon(Icons.account_balance_wallet_outlined, size: 18),
+                  label: const Text('Convert points to wallet cash'),
+                ),
               ),
             ],
           ),
