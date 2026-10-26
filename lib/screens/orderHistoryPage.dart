@@ -116,6 +116,8 @@ class _OrderHistoryPageState extends State<OrderHistoryPage>
     super.dispose();
   }
 
+  bool _retriedAfterRenew = false;
+
   Future<void> _fetchOrders() async {
     // Guard: ensure token exists before hitting the API.
     final bool authed = await _authService.isAuthenticated();
@@ -141,11 +143,22 @@ class _OrderHistoryPageState extends State<OrderHistoryPage>
       final String msg = e.toString();
 
       // 401 = expired token → clear + redirect to login
-      if (msg.contains('401') ||
-          msg.contains('Session expired') ||
+      if (msg.contains('Session expired') ||
           msg.contains('Not authenticated')) {
-        await _authService.logout();
-        _redirectToLogin();
+        // Renew once and retry; only leave when the session is really gone.
+        final SessionRenewal r = await _authService.renewSession();
+        if (r == SessionRenewal.renewed && mounted && !_retriedAfterRenew) {
+          _retriedAfterRenew = true;
+          await _fetchOrders();
+          return;
+        }
+        if (r == SessionRenewal.over) {
+          _redirectToLogin();
+          return;
+        }
+        if (mounted) {
+          setState(() => _error = 'Could not load your orders. Pull down to retry.');
+        }
         return;
       }
 

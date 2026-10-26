@@ -48,6 +48,8 @@ class AuthService {
 
   static const String _refreshKey = 'refresh_token';
   static Future<bool>? _refreshing;
+  // True only when the server definitively refused the refresh token.
+  static bool _refreshRejected = false;
 
   Future<void> _saveRefresh(Map<String, dynamic> data) async {
     final Object? r = data['refreshToken'];
@@ -71,6 +73,25 @@ class AuthService {
     }
   }
 
+  /// Forces a token renewal after the server answered 401.
+  /// Returns `renewed` when a new access token is stored, `over` when the
+  /// session is really finished (and clears it), `unreachable` otherwise.
+  Future<SessionRenewal> renewSession() async {
+    if (await _refreshSession()) return SessionRenewal.renewed;
+    if (await _sessionIsOver()) {
+      await _storage.delete(key: _tokenKey);
+      await _storage.delete(key: _refreshKey);
+      return SessionRenewal.over;
+    }
+    return SessionRenewal.unreachable;
+  }
+
+  Future<bool> _sessionIsOver() async {
+    if (_refreshRejected) return true;
+    final String? r = await _storage.read(key: _refreshKey);
+    return r == null || r.isEmpty;
+  }
+
   Future<bool> _refreshSession() async {
     final String? refresh = await _storage.read(key: _refreshKey);
     if (refresh == null || refresh.isEmpty) return false;
@@ -83,6 +104,7 @@ class AuthService {
           )
           .timeout(const Duration(seconds: 20));
       if (res.statusCode == 200) {
+        _refreshRejected = false;
         final Map<String, dynamic> data = jsonDecode(res.body) as Map<String, dynamic>;
         final String? t = data['token'] as String?;
         if (t == null) return false;
@@ -92,6 +114,7 @@ class AuthService {
       }
       if (res.statusCode == 401 || res.statusCode == 403) {
         // Server says this session is over (deactivated / revoked): sign out.
+        _refreshRejected = true;
         await _storage.delete(key: _tokenKey);
         await _storage.delete(key: _refreshKey);
       }
@@ -952,10 +975,16 @@ class AuthService {
         if (await _refreshSession()) {
           throw AuthException('Please try again.');
         }
-        await _storage.delete(key: _tokenKey);
-        await _storage.delete(key: _refreshKey);
-        await _storage.delete(key: _userKey);
-        throw AuthException('Session expired. Please login again.');
+        // Only end the session when it is really over: the server refused the
+        // refresh token, or this install never had one. A network blip or a
+        // server hiccup must not sign the customer out.
+        if (await _sessionIsOver()) {
+          await _storage.delete(key: _tokenKey);
+          await _storage.delete(key: _refreshKey);
+          await _storage.delete(key: _userKey);
+          throw AuthException('Session expired. Please login again.');
+        }
+        throw AuthException('Could not reach the server. Please try again.');
       } else {
         final Map<String, dynamic> error =
             jsonDecode(response.body) as Map<String, dynamic>;
@@ -1078,10 +1107,16 @@ class AuthService {
         if (await _refreshSession()) {
           throw AuthException('Please try again.');
         }
-        await _storage.delete(key: _tokenKey);
-        await _storage.delete(key: _refreshKey);
-        await _storage.delete(key: _userKey);
-        throw AuthException('Session expired. Please login again.');
+        // Only end the session when it is really over: the server refused the
+        // refresh token, or this install never had one. A network blip or a
+        // server hiccup must not sign the customer out.
+        if (await _sessionIsOver()) {
+          await _storage.delete(key: _tokenKey);
+          await _storage.delete(key: _refreshKey);
+          await _storage.delete(key: _userKey);
+          throw AuthException('Session expired. Please login again.');
+        }
+        throw AuthException('Could not reach the server. Please try again.');
       } else {
         final Map<String, dynamic> error =
             jsonDecode(response.body) as Map<String, dynamic>;
@@ -1148,10 +1183,16 @@ class AuthService {
         if (await _refreshSession()) {
           throw AuthException('Please try again.');
         }
-        await _storage.delete(key: _tokenKey);
-        await _storage.delete(key: _refreshKey);
-        await _storage.delete(key: _userKey);
-        throw AuthException('Session expired. Please login again.');
+        // Only end the session when it is really over: the server refused the
+        // refresh token, or this install never had one. A network blip or a
+        // server hiccup must not sign the customer out.
+        if (await _sessionIsOver()) {
+          await _storage.delete(key: _tokenKey);
+          await _storage.delete(key: _refreshKey);
+          await _storage.delete(key: _userKey);
+          throw AuthException('Session expired. Please login again.');
+        }
+        throw AuthException('Could not reach the server. Please try again.');
       } else {
         final error = jsonDecode(response.body) as Map<String, dynamic>;
         throw AuthException(
@@ -1205,3 +1246,5 @@ class AuthException implements Exception {
   @override
   String toString() => message;
 }
+
+enum SessionRenewal { renewed, over, unreachable }
