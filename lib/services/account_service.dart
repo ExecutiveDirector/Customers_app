@@ -437,6 +437,38 @@ class AccountService {
     }
   }
 
+  /// What points are worth (set on the server). Falls back to the defaults.
+  Future<({int minConvert, double pointValueKes})> getLoyaltyRules() async {
+    try {
+      final http.Response r = await http
+          .get(Uri.parse('$_baseUrl/loyalty-rules'), headers: await _headers())
+          .timeout(const Duration(seconds: 10));
+      if (r.statusCode == 200) {
+        final Map<String, dynamic> d = jsonDecode(r.body) as Map<String, dynamic>;
+        return (
+          minConvert: (d['min_convert'] as num?)?.toInt() ?? 50,
+          pointValueKes: (d['point_value_kes'] as num?)?.toDouble() ?? 1.0,
+        );
+      }
+    } catch (_) {}
+    return (minConvert: 50, pointValueKes: 1.0);
+  }
+
+  /// Turns points into wallet credit. Returns the KES added to the wallet.
+  Future<double> convertPoints(int points) async {
+    try {
+      final http.Response r = await http
+          .post(Uri.parse('$_baseUrl/loyalty-convert'),
+              headers: await _headers(), body: jsonEncode(<String, dynamic>{'points': points}))
+          .timeout(const Duration(seconds: 15));
+      final Map<String, dynamic> d = jsonDecode(r.body) as Map<String, dynamic>;
+      if (r.statusCode == 200) return (d['wallet_credit'] as num?)?.toDouble() ?? 0;
+      throw Exception(d['error']?.toString() ?? 'Could not convert points.');
+    } catch (e) {
+      throw _friendlyError(e);
+    }
+  }
+
   Future<ReferralSummary> getReferralSummary() async {
     try {
       final http.Response response = await http
