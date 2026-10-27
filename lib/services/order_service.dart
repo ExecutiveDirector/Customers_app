@@ -16,9 +16,11 @@ class OrderService {
   // Guest orders: the backend returns an `order_access_token` when it creates an
   // order without a login. It must be sent back (header `x-order-token`) to view,
   // pay for, confirm or cancel that order. Stored per order in the platform keystore.
-  static const FlutterSecureStorage _orderTokens = FlutterSecureStorage(
-    aOptions: AndroidOptions(encryptedSharedPreferences: true),
-  );
+  // IMPORTANT: use the same default storage as AuthService. A second instance with
+  // different Android options (encryptedSharedPreferences) makes the plugin migrate and
+  // wipe the default store, which silently deleted the login token every time an order
+  // was created (the "logged out after every order" bug).
+  static const FlutterSecureStorage _orderTokens = FlutterSecureStorage();
 
   Future<void> _saveOrderToken(String orderId, dynamic token) async {
     if (token is! String || token.isEmpty) return;

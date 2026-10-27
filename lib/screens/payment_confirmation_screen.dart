@@ -85,6 +85,40 @@ class _PaymentConfirmationScreenState extends State<PaymentConfirmationScreen> {
     await _fetchOrderDetails();
   }
 
+  /// The API returns order_id / vendor_name / total_amount / items[product_name...];
+  /// read those (and the older camelCase names) without ever throwing on a missing field.
+  models.AppOrder _orderFromApi(Map<String, dynamic> o) {
+    double d(Object? v) => v is num ? v.toDouble() : double.tryParse('$v') ?? 0;
+    int i(Object? v) => v is num ? v.toInt() : int.tryParse('$v') ?? 1;
+    final List<models.OrderItem> items = (o['items'] as List<dynamic>? ?? <dynamic>[])
+        .whereType<Map>()
+        .map((Map m) => models.OrderItem(
+              id: '${m['id'] ?? m['product_name'] ?? ''}',
+              name: '${m['name'] ?? m['product_name'] ?? 'Item'}',
+              price: d(m['price']),
+              quantity: i(m['quantity']),
+            ))
+        .toList();
+    final Object? loc = o['deliveryLocation'];
+    final double? lat = o['delivery_lat'] != null
+        ? d(o['delivery_lat'])
+        : (loc is Map && loc['latitude'] is num ? (loc['latitude'] as num).toDouble() : null);
+    final double? lng = o['delivery_lng'] != null
+        ? d(o['delivery_lng'])
+        : (loc is Map && loc['longitude'] is num ? (loc['longitude'] as num).toDouble() : null);
+    return models.AppOrder(
+      id: '${o['_id'] ?? o['order_id'] ?? o['id'] ?? widget.orderId}',
+      userId: '${o['userId'] ?? o['customer_id'] ?? ''}',
+      vendorName: '${o['vendorName'] ?? o['vendor_name'] ?? ''}',
+      status: '${o['status'] ?? o['order_status'] ?? 'pending'}',
+      timestamp: DateTime.tryParse('${o['createdAt'] ?? o['created_at'] ?? ''}') ?? DateTime.now(),
+      items: items,
+      totalPrice: d(o['totalPrice'] ?? o['grand_total'] ?? o['total_amount']),
+      quantity: items.fold<int>(0, (int s, models.OrderItem e) => s + e.quantity),
+      deliveryLocation: lat != null && lng != null ? LatLng(lat, lng) : null,
+    );
+  }
+
   Future<void> _fetchOrderDetails() async {
     setState(() {
       _isLoading = true;
@@ -108,32 +142,11 @@ class _PaymentConfirmationScreenState extends State<PaymentConfirmationScreen> {
       // Fetch order details from backend
       final orderData = await _orderService.getOrderById(widget.orderId);
 
-      final Map<String, dynamic>? loc =
-          orderData['deliveryLocation'] as Map<String, dynamic>?;
-      LatLng? deliveryLocation =
-          loc != null && loc['latitude'] is num && loc['longitude'] is num
-              ? LatLng(
-                  (loc['latitude'] as num).toDouble(),
-                  (loc['longitude'] as num).toDouble(),
-                )
-              : null;
+      final models.AppOrder parsed = _orderFromApi(orderData);
 
       if (mounted) {
         setState(() {
-          _order = models.AppOrder(
-            id: orderData['_id'] as String,
-            userId: orderData['userId'] as String,
-            vendorName: orderData['vendorName'] as String,
-            status: orderData['status'] as String,
-            timestamp: DateTime.parse(orderData['createdAt'] as String),
-            items: (orderData['items'] as List<dynamic>)
-                .map((dynamic item) =>
-                    models.OrderItem.fromJson(item as Map<String, dynamic>))
-                .toList(),
-            totalPrice: (orderData['totalPrice'] as num).toDouble(),
-            quantity: orderData['quantity'] as int,
-            deliveryLocation: deliveryLocation,
-          );
+          _order = parsed;
           _isLoading = false;
         });
       }
