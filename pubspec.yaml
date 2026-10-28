@@ -65,14 +65,13 @@ dev_dependencies:
   flutter_native_splash: ^2.4.2
 
 # ─── App icon (flutter_launcher_icons) ─────────────────────────────────────
-# Source image should ideally be 1024x1024 PNG. assets/assets/images/logo.png
-# is 348x387 (not square) — usable as a placeholder, but swap in a proper
-# square 1024x1024 logo before submitting to the stores if you have one.
+# Source image: 1024x1024 square AquaGas icon (white background).
+# Replace assets/assets/icon/app_icon.png with a higher-res original when available.
 # Run: flutter pub run flutter_launcher_icons
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/assets/images/logo.png"
+  image_path: "assets/assets/icon/app_icon.png"
   min_sdk_android: 21
   adaptive_icon_background: "#10B981"
   adaptive_icon_foreground: "assets/assets/images/logo.png"

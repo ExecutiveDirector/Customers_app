@@ -143,8 +143,8 @@ class _SplashScreenState extends State<SplashScreen>
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(25),
                             child: Image.asset(
-                              'assets/images/logo.png',
-                              fit: BoxFit.cover,
+                              'assets/assets/images/logo.png',
+                              fit: BoxFit.contain,
                               errorBuilder: (context, error, stackTrace) {
                                 debugPrint('❌ Failed to load logo: $error');
                                 return Icon(
