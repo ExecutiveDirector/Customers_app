@@ -108,6 +108,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/assets/images/logo.png
+    - assets/loader/
     - assets/visa_logo.png
     - assets/mastercard_logo.png
     - assets/mpesa_logo.png
