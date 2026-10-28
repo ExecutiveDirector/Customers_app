@@ -1,3 +1,4 @@
+import 'package:aquagas/widgets/logo_loader.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -549,7 +550,7 @@ class _MyAppState extends State<MyApp> {
               builder: (context, snapshot) {
                 if (!snapshot.hasData) {
                   return const Scaffold(
-                      body: Center(child: CircularProgressIndicator()));
+                      body: Center(child: LogoLoader(size: 104)));
                 }
                 final data = snapshot.data!;
                 return HomePage(

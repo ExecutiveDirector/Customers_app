@@ -17,6 +17,7 @@
 //
 // Empty / loading / error states all redesigned with the new system
 // (friendly illustration, brand teal, single primary action).
+import 'package:aquagas/widgets/logo_loader.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -708,54 +709,7 @@ class _LoadingBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
-      physics: const AlwaysScrollableScrollPhysics(),
-      children: const <Widget>[
-        _Skeleton(height: 150, margin: AppSpacing.md),
-        SizedBox(height: AppSpacing.sm),
-        Row(
-          children: <Widget>[
-            SizedBox(width: AppSpacing.md),
-            _Skeleton(width: 80, height: 80),
-            SizedBox(width: AppSpacing.xs),
-            _Skeleton(width: 80, height: 80),
-            SizedBox(width: AppSpacing.xs),
-            _Skeleton(width: 80, height: 80),
-            SizedBox(width: AppSpacing.xs),
-            _Skeleton(width: 80, height: 80),
-          ],
-        ),
-        SizedBox(height: AppSpacing.md),
-        _Skeleton(height: 100, margin: AppSpacing.md),
-        SizedBox(height: AppSpacing.md),
-        _Skeleton(height: 200, margin: AppSpacing.md),
-      ],
-    );
-  }
-}
-
-class _Skeleton extends StatelessWidget {
-  const _Skeleton({
-    this.width = double.infinity,
-    required this.height,
-    this.margin = 0,
-  });
-  final double width;
-  final double height;
-  final double margin;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: width,
-      height: height,
-      margin: EdgeInsets.symmetric(horizontal: margin),
-      decoration: BoxDecoration(
-        color: AppColors.slate100,
-        borderRadius: BorderRadius.circular(AppRadius.md),
-      ),
-    );
+    return const Center(child: LogoLoader(size: 104, label: 'Loading products…'));
   }
 }
 

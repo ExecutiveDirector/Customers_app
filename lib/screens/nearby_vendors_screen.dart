@@ -1,4 +1,5 @@
 // lib/screens/nearby_outlets_screen.dart
+import 'package:aquagas/widgets/logo_loader.dart';
 import 'package:flutter/material.dart';
 import 'package:aquagas/services/outlet_service.dart';
 import 'package:geolocator/geolocator.dart';
@@ -249,7 +250,7 @@ class _NearbyVendorsScreenState extends State<NearbyVendorsScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  CircularProgressIndicator(color: Colors.green.shade600),
+                  const LogoLoader(size: 84),
                   const SizedBox(height: 16),
                   Text(
                     _isLoadingLocation
