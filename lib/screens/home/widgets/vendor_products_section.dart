@@ -18,6 +18,7 @@
 //     a "stock count" number in parentheses.
 //   • ProductDetailScreen is still the same destination, OutletProductsPage
 //     is still the "View all" destination — no API or routing changes.
+import 'package:aquagas/widgets/logo_loader.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -633,7 +634,7 @@ class _OutletProductsScreenState extends State<OutletProductsScreen> {
           title: Text(_outletName),
         ),
         body: const Center(
-          child: CircularProgressIndicator(),
+          child: LogoLoader(size: 96, label: 'Loading products…'),
         ),
       );
     }

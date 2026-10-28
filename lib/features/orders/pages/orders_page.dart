@@ -1,3 +1,4 @@
+import 'package:aquagas/widgets/logo_loader.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:aquagas/features/orders/models/order_model.dart';
@@ -64,7 +65,7 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
           ),
           Expanded(
             child: ordersAsync.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
+              loading: () => const Center(child: LogoLoader(size: 84)),
               error: (Object e, StackTrace _) =>
                   Center(child: Text(e.toString())),
               data: (List<OrderModel> orders) {
