@@ -16,6 +16,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:aquagas/services/auth_service.dart';
 
@@ -41,6 +42,16 @@ class ErrorReportingService {
     if (stackTrace != null) {
       debugPrint(stackTrace.toString());
     }
+
+    // Sentry (best-effort; never throws, never recurses into logError).
+    try {
+      unawaited(Sentry.captureException(error, stackTrace: stackTrace,
+          withScope: (scope) {
+        scope.setTag('context', context);
+        if (orderId != null) scope.setTag('order_id', orderId);
+        scope.level = fatal ? SentryLevel.fatal : SentryLevel.error;
+      }));
+    } catch (_) {}
 
     unawaited(_report(
       context: context,
